@@ -38,6 +38,7 @@ rst-render template.rst.j2 -t -d data.json -v title="My Report"
 | Option | Description |
 |--------|-------------|
 | `-o, --output <path>` | Write output to file (default: stdout) |
+| `-s, --standalone` | Bundle into self-contained HTML (inline CSS + images) |
 | `--md, --markdown` | Output Markdown instead of HTML |
 | `--react` | Output React component code |
 | `-t, --template` | Render as Jinja2 template, then to HTML |
@@ -480,80 +481,29 @@ file alongside the RST source and reference it by relative path:
 
 ## Standalone HTML (Self-Contained File)
 
-When you need to send a report as a **single HTML file** to clients — with
-all CSS, images, and fonts embedded — use the bundling script:
-
-### Bundling Script
-
-Save this as `bundle-html.cjs` in your project:
-
-```js
-// bundle-html.cjs — Inline CSS, JS, and images into a single HTML file
-const fs = require('fs')
-const path = require('path')
-
-const htmlFile = process.argv[2] || 'output.html'
-const outFile = process.argv[3] || htmlFile.replace('.html', '-standalone.html')
-const baseDir = path.dirname(path.resolve(htmlFile))
-
-let html = fs.readFileSync(htmlFile, 'utf-8')
-
-// Inline local CSS
-html = html.replace(
-  /<link[^>]+href="([^"]+\.css)"[^>]*>/gi,
-  (match, href) => {
-    const cssPath = path.resolve(baseDir, href)
-    if (fs.existsSync(cssPath)) {
-      return `<style>\n${fs.readFileSync(cssPath, 'utf-8')}\n</style>`
-    }
-    return match
-  }
-)
-
-// Inline local images as base64
-html = html.replace(
-  /<img[^>]+src="([^"]+)"[^>]*>/gi,
-  (match, src) => {
-    if (src.startsWith('http')) return match
-    const imgPath = path.resolve(baseDir, src)
-    if (!fs.existsSync(imgPath)) return match
-    const ext = path.extname(imgPath).slice(1).replace('svg', 'svg+xml')
-    const data = fs.readFileSync(imgPath)
-    const b64 = data.toString('base64')
-    return match.replace(src, `data:image/${ext};base64,${b64}`)
-  }
-)
-
-// Inline local JS
-html = html.replace(
-  /<script[^>]+src="([^"]+\.js)"[^>]*><\/script>/gi,
-  (match, src) => {
-    const jsPath = path.resolve(baseDir, src)
-    if (fs.existsSync(jsPath)) {
-      return `<script>${fs.readFileSync(jsPath, 'utf-8')}</script>`
-    }
-    return match
-  }
-)
-
-fs.writeFileSync(outFile, html)
-console.log(`Written: ${outFile} (${(fs.statSync(outFile).size / 1024).toFixed(1)} KB)`)
-```
-
-### Usage
+Use `--standalone` (or `-s`) to produce a **single HTML file** with all
+CSS, images, and scripts inlined. Perfect for sending reports to clients.
 
 ```bash
-# 1. Generate HTML report
-rst-render report.rst -o report.html
+# Generate + bundle in one command
+rst-render report.rst -o report.html --standalone
 
-# 2. Bundle into standalone file
-node bundle-html.cjs report.html
-# → report-standalone.html  (images + CSS inlined)
-
-# 3. Send to client — single file, no dependencies
-open report-standalone.html
+# Template with data, standalone output
+rst-render report.rst.j2 -t -d data.json -o report.html -s
 ```
 
-> **Tip:** The bundled file includes images as base64 (larger but self-contained).
-> For SVG logos, the size increase is negligible. For large PNGs, consider
-> linking to a CDN instead.
+**What it does:**
+
+- `<link rel="stylesheet">` → `<style>` with inline CSS
+- `<img src="logo.png">` → `<img src="data:image/png;base64,...">`
+- `<script src="app.js">` → `<script>` with inline JS
+
+Remote URLs (http/https) and already-inlined data URIs are left untouched.
+
+```bash
+# Before: report.html (references logo.png + styles.css)
+# After: report.html (single file, no external deps)
+#
+#   Size increase depends on image sizes.
+#   SVG logos add negligible overhead.
+```
