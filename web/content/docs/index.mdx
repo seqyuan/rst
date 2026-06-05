@@ -29,18 +29,100 @@ This is **bold** and *italic* text.
 
 ### Packages
 
-| Package | Description |
-|---------|-------------|
-| `@seqyuan/rst-renderer` | Core: parser + HTML/React/Markdown renderers |
-| `@seqyuan/rst-cli` | CLI: `rst-render input.rst -o out.html` |
-| `@seqyuan/vite-plugin-rst` | Vite: `import html from './doc.rst'` |
+| Package | Description | npm |
+|---------|-------------|-----|
+| `@seqyuan/rst-renderer` | Core: parser + HTML/React/Markdown renderers + template engine | `pnpm add @seqyuan/rst-renderer` |
+| `@seqyuan/rst-cli` | CLI: `rst-render input.rst -o out.html` | `pnpm add -g @seqyuan/rst-cli` |
+| `@seqyuan/vite-plugin-rst` | Vite: `import html from './doc.rst'` | `pnpm add -D @seqyuan/vite-plugin-rst` |
 
-### Features
+### Architecture
 
-- **RST Parser**: Sections, paragraphs, lists, tables, directives, inline markup
-- **HTML Renderer**: 11 directive plugins (image, code+Shiki, math+KaTeX, admonition, etc.)
-- **React Renderer**: RST → React component tree with custom component mapping
-- **Markdown Renderer**: RST → GFM Markdown with heading offset
-- **Jinja2 Templates**: Nested for/if/else, 12 filters, loop variables
-- **CJK Support**: Full Chinese/Japanese/Korean text rendering
-- **TypeScript**: Full type definitions included
+```
+RST Source
+    │
+    ▼
+┌─────────────┐
+│   Parser    │  ← builtin parser / rst-compiler adapter
+└──────┬──────┘
+       │
+       ▼
+┌─────────────┐
+│ Unified AST │  ← 40+ node types (Document, Section, Paragraph, Table...)
+└──────┬──────┘
+       │
+       ├──→ HTML Renderer    (11 directive plugins, Shiki, KaTeX)
+       ├──→ React Renderer   (custom component mapping)
+       └──→ Markdown Renderer (GFM tables, heading offset)
+```
+
+### Features at a Glance
+
+| Category | Feature | Status |
+|----------|---------|:------:|
+| Parsing | Sections, paragraphs, lists, tables, directives, comments | ✅ |
+| | Inline markup: bold, italic, code, links, references | ✅ |
+| | Builtin parser + rst-compiler adapter | ✅ |
+| HTML | Semantic HTML with CSS classes | ✅ |
+| | 11 directive plugins | ✅ |
+| | Shiki syntax highlighting (auto-detect) | ✅ |
+| | KaTeX math rendering (auto-detect) | ✅ |
+| React | Component tree generation | ✅ |
+| | Custom component overrides per node type | ✅ |
+| Markdown | GFM table output | ✅ |
+| | Heading offset customization | ✅ |
+| Templates | Jinja2-compatible syntax | ✅ |
+| | Nested for/if/else, 12 filters, loop variables | ✅ |
+| CJK | Full Chinese/Japanese/Korean support | ✅ |
+| Types | Full TypeScript definitions (ESM + DTS) | ✅ |
+
+### Usage Scenarios
+
+**Documentation sites** — Render RST documentation to HTML at build time.
+
+```ts
+import { renderRst } from '@seqyuan/rst-renderer'
+import fs from 'node:fs'
+
+const rst = fs.readFileSync('README.rst', 'utf-8')
+const html = renderRst(rst)
+```
+
+**Bioinformatics reports** — Generate HTML reports from Jinja2 RST templates.
+
+```ts
+import { renderRstTemplate } from '@seqyuan/rst-renderer'
+
+const template = fs.readFileSync('report.rst.j2', 'utf-8')
+const html = renderRstTemplate(template, {
+  samples: [{ name: 'CTRL', metrics: { cells: 5000 } }],
+  version: '7.2.0',
+})
+```
+
+**React apps** — Render RST content as React components.
+
+```tsx
+import { ReactRenderer } from '@seqyuan/rst-renderer/react'
+
+const renderer = new ReactRenderer({
+  components: {
+    Section: ({ node, children }) => (
+      <section className="my-section">
+        <h2>{node.title}</h2>
+        {children}
+      </section>
+    ),
+  },
+})
+```
+
+**Vite projects** — Import .rst files directly.
+
+```ts
+// vite.config.ts
+import rst from '@seqyuan/vite-plugin-rst'
+export default { plugins: [rst()] }
+
+// your-component.tsx
+import { html } from './doc.rst'
+```

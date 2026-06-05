@@ -1,0 +1,179 @@
+---
+title: Gallery
+description: See what rst-renderer produces — live HTML rendering examples
+---
+
+## Gallery / Showcase
+
+See the rendered output of common RST patterns.
+
+### Basic Text
+
+```rst
+Hello World
+===========
+
+This is a paragraph with **bold**, *italic*, and ``inline code``.
+
+Another paragraph with a `literal` and *nested **markup***.
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card">
+  <h2 id="hello-world">Hello World</h2>
+  <p>This is a paragraph with <strong>bold</strong>, <em>italic</em>, and <code>inline code</code>.</p>
+  <p>Another paragraph with a <code>literal</code> and <em>nested <strong>markup</strong></em>.</p>
+</div>
+
+### Sections & Lists
+
+```rst
+Features
+========
+
+Core Capabilities
+-----------------
+
+* HTML rendering with 11 directive plugins
+* React component tree generation
+* Markdown conversion with GFM tables
+
+Installation
+------------
+
+1. Install the package
+2. Import and render
+3. Enjoy!
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card">
+  <h2 id="features">Features</h2>
+  <h3 id="core-capabilities">Core Capabilities</h3>
+  <ul>
+    <li>HTML rendering with 11 directive plugins</li>
+    <li>React component tree generation</li>
+    <li>Markdown conversion with GFM tables</li>
+  </ul>
+  <h3 id="installation">Installation</h3>
+  <ol>
+    <li>Install the package</li>
+    <li>Import and render</li>
+    <li>Enjoy!</li>
+  </ol>
+</div>
+
+### Code Blocks
+
+```rst
+Usage Example
+=============
+
+.. code:: typescript
+
+   import { renderRst } from '@seqyuan/rst-renderer'
+
+   const html = renderRst(rstSource)
+   console.log(html)
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card">
+  <h2 id="usage-example">Usage Example</h2>
+  <pre><code className="language-typescript">{`import { renderRst } from '@seqyuan/rst-renderer'
+
+const html = renderRst(rstSource)
+console.log(html)`}</code></pre>
+</div>
+
+### Admonitions
+
+```rst
+.. note::
+
+   This is a note admonition with important information.
+
+.. warning::
+
+   This is a warning! Pay attention to this.
+
+.. tip::
+
+   Pro tip: use rst-renderer for all your RST needs.
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card space-y-4">
+  <div className="border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 p-4 rounded-r">
+    <p className="font-semibold text-blue-700 dark:text-blue-300">Note</p>
+    <p className="text-sm">This is a note admonition with important information.</p>
+  </div>
+  <div className="border-l-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 p-4 rounded-r">
+    <p className="font-semibold text-yellow-700 dark:text-yellow-300">Warning</p>
+    <p className="text-sm">This is a warning! Pay attention to this.</p>
+  </div>
+  <div className="border-l-4 border-green-500 bg-green-50 dark:bg-green-950/30 p-4 rounded-r">
+    <p className="font-semibold text-green-700 dark:text-green-300">Tip</p>
+    <p className="text-sm">Pro tip: use rst-renderer for all your RST needs.</p>
+  </div>
+</div>
+
+### Links & References
+
+```rst
+See the :doc:`HTML Rendering </docs/html-rendering>` page for details,
+or check the `GitHub repository <https://github.com/seqyuan/rst>`_.
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card">
+  <p>See the <a href="/docs/html-rendering">HTML Rendering</a> page for details, or check the <a href="https://github.com/seqyuan/rst">GitHub repository</a>.</p>
+</div>
+
+### Images
+
+```rst
+.. image:: /assets/og-card.png
+   :alt: rst-renderer
+   :width: 400px
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card">
+  <img src="/assets/og-card.png" alt="rst-renderer" style={{ width: '400px' }} className="rounded" />
+</div>
+
+### Chinese (CJK)
+
+```rst
+单细胞分析报告
+==============
+
+使用 Cell Ranger **7.2.0** 对 ``3`` 个样本进行了分析。
+
+样本质控
+--------
+
+* 估计细胞数：5,000
+* 中位基因数：1,200
+* 线粒体比例：< 5%
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card">
+  <h2 id="单细胞分析报告">单细胞分析报告</h2>
+  <p>使用 Cell Ranger <strong>7.2.0</strong> 对 <code>3</code> 个样本进行了分析。</p>
+  <h3 id="样本质控">样本质控</h3>
+  <ul>
+    <li>估计细胞数：5,000</li>
+    <li>中位基因数：1,200</li>
+    <li>线粒体比例：&lt; 5%</li>
+  </ul>
+</div>

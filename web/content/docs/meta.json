@@ -1,6 +1,7 @@
 {
   "pages": [
     "index",
+    "gallery",
     "html-rendering",
     "react-rendering",
     "template-engine",
