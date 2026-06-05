@@ -381,7 +381,7 @@ Here's what this RST document looks like when rendered with rst-renderer:
   </table>
 
   <h3 id="分析命令" className="mt-6">分析命令</h3>
-  <pre className="bg-fd-muted p-4 rounded text-xs overflow-x-auto my-3"><code># Cell Ranger count
+  <pre className="bg-fd-muted p-4 rounded text-xs overflow-x-auto my-3"><code>{`# Cell Ranger count
 cellranger count \
   --id=WT_Control \
   --transcriptome=/ref/GRCh38 \
@@ -395,7 +395,7 @@ Rscript qc.R \
   --input ./process/cellranger/WT_Control/outs \
   --sample WT_Control \
   --mt-pct 20 \
-  --output ./process/qc/WT_Control</code></pre>
+  --output ./process/qc/WT_Control`}</code></pre>
 
   <h3 id="差异分析结果" className="mt-6">差异分析结果</h3>
   <table className="w-full text-sm border my-3">
