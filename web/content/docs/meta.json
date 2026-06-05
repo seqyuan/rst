@@ -1,0 +1,9 @@
+{
+  "pages": [
+    "index",
+    "html-rendering",
+    "react-rendering",
+    "template-engine",
+    "cli"
+  ]
+}

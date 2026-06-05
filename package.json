@@ -1,0 +1,7 @@
+{
+  "name": "rst-renderer",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}

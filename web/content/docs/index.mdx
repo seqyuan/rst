@@ -1,0 +1,46 @@
+---
+title: rst-renderer
+description: reStructuredText renderer for JavaScript/TypeScript — RST → HTML, React, Markdown
+---
+
+## Overview
+
+**rst-renderer** is a TypeScript library that parses reStructuredText (RST) into a
+unified AST and renders it to multiple output formats.
+
+### Quick Start
+
+```bash
+pnpm add @seqyuan/rst-renderer
+```
+
+```ts
+import { renderRst } from '@seqyuan/rst-renderer'
+
+const html = renderRst(`Hello
+=====
+
+This is **bold** and *italic* text.
+
+- item 1
+- item 2
+`)
+```
+
+### Packages
+
+| Package | Description |
+|---------|-------------|
+| `@seqyuan/rst-renderer` | Core: parser + HTML/React/Markdown renderers |
+| `@seqyuan/rst-cli` | CLI: `rst-render input.rst -o out.html` |
+| `@seqyuan/vite-plugin-rst` | Vite: `import html from './doc.rst'` |
+
+### Features
+
+- **RST Parser**: Sections, paragraphs, lists, tables, directives, inline markup
+- **HTML Renderer**: 11 directive plugins (image, code+Shiki, math+KaTeX, admonition, etc.)
+- **React Renderer**: RST → React component tree with custom component mapping
+- **Markdown Renderer**: RST → GFM Markdown with heading offset
+- **Jinja2 Templates**: Nested for/if/else, 12 filters, loop variables
+- **CJK Support**: Full Chinese/Japanese/Korean text rendering
+- **TypeScript**: Full type definitions included

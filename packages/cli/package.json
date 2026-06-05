@@ -1,0 +1,22 @@
+{
+  "name": "@seqyuan/rst-cli",
+  "version": "0.1.0",
+  "description": "CLI tool for rendering reStructuredText to HTML/Markdown",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "rst-render": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "@seqyuan/rst-renderer": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  }
+}

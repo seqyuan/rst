@@ -1,0 +1,80 @@
+---
+title: HTML Rendering
+description: Render RST to HTML with syntax highlighting, math, and directives
+---
+
+## HTML Renderer
+
+The HTML renderer converts RST documents to semantic HTML with support for
+11 directive plugins.
+
+### Basic Usage
+
+```ts
+import { renderRst } from '@seqyuan/rst-renderer'
+
+const html = renderRst(`Title
+=====
+
+This is **bold** text.
+
+.. code:: typescript
+
+   const x: number = 42
+
+.. math::
+
+   E = mc^2
+`)
+```
+
+### Directive Plugins
+
+| Plugin | Directives | Notes |
+|--------|-----------|-------|
+| `imagePlugin` | `image`, `figure` | Image embedding |
+| `codePlugin` | `code`, `code-block`, `sourcecode` | Shiki syntax highlighting (auto-detected) |
+| `mathPlugin` | `math` | KaTeX rendering (auto-detected) |
+| `admonitionPlugin` | `note`, `warning`, `tip`, `important`, `caution`, `danger`, `hint`, `attention`, `error`, `admonition` | Callout boxes |
+| `csvTablePlugin` | `csv-table` | CSV table with `:file:` or inline body |
+| `imagePlugin` | `image`, `figure` | Image with alt/width/height/align |
+| `rawPlugin` | `raw` | Raw HTML passthrough |
+| `replacePlugin` | `replace`, `unicode` | Text substitution |
+| `containerPlugin` | `container` | Custom CSS container |
+| `contentsPlugin` | `contents`, `toctree` | TOC placeholder |
+| `includePlugin` | `include` | File include placeholder |
+
+### Custom Directives
+
+```ts
+import { HtmlRenderer } from '@seqyuan/rst-renderer'
+
+const renderer = new HtmlRenderer()
+
+renderer.registerDirective('my-custom', (directive, ctx, renderChildren) => {
+  ctx.write(`<div class="custom">`)
+  renderChildren(directive.children, ctx)
+  ctx.write(`</div>`)
+})
+```
+
+### Code Highlighting
+
+When `shiki` is installed, code blocks are automatically syntax-highlighted:
+
+```bash
+pnpm add shiki
+```
+
+Without Shiki, code blocks render as `<pre><code>` with `data-language` attributes
+for client-side highlighting.
+
+### Math Rendering
+
+When `katex` is installed, math blocks render as rendered HTML:
+
+```bash
+pnpm add katex
+```
+
+Without KaTeX, math renders as LaTeX source wrapped in `<div class="math">`.

@@ -1,0 +1,122 @@
+---
+title: Template Engine
+description: Jinja2-compatible template engine for RST report generation
+---
+
+## Template Engine
+
+The built-in template engine supports Jinja2-compatible syntax for generating
+RST documents from data.
+
+### Basic Usage
+
+```ts
+import { renderRstTemplate } from '@seqyuan/rst-renderer'
+
+const template = `Report
+======
+
+{% for sample in samples %}
+{{ sample.name }}
+{{ '=' * sample.name.length }}
+
+- ID: {{ sample.id }}
+- Status: {{ sample.status|default("pending") }}
+
+{% endfor %}
+`
+
+const html = renderRstTemplate(template, {
+  samples: [
+    { name: 'S1', id: '001', status: 'done' },
+    { name: 'S2', id: '002' },
+  ],
+})
+```
+
+### Supported Syntax
+
+#### Variables
+
+```jinja2
+{{ variable }}
+{{ user.name }}
+{{ items["key"] }}
+```
+
+#### Filters
+
+```jinja2
+{{ name|default("N/A") }}
+{{ items|length }}
+{{ text|upper }}
+{{ text|lower }}
+{{ items|join(", ") }}
+{{ obj|tojson }}
+{{ value|int }}
+{{ value|float }}
+{{ value|abs }}
+{{ items|first }}
+{{ items|last }}
+{{ text|trim }}
+```
+
+#### For Loops
+
+```jinja2
+{% for item in items %}
+  {{ loop.index }}. {{ item }}
+{% endfor %}
+```
+
+Loop variables: `loop.index`, `loop.index0`, `loop.first`, `loop.last`,
+`loop.length`, `loop.revindex`, `loop.revindex0`
+
+#### Nested Loops
+
+```jinja2
+{% for group in groups %}
+Group: {{ group.name }}
+{% for item in group.items %}
+  - {{ item }}
+{% endfor %}
+{% endfor %}
+```
+
+#### If/Else
+
+```jinja2
+{% if condition %}
+  yes
+{% else %}
+  no
+{% endif %}
+
+{% if not flag %}
+  disabled
+{% endif %}
+```
+
+#### Comments
+
+```jinja2
+{# this is a comment #}
+```
+
+### Two-Step Rendering
+
+```ts
+import { renderTemplate, renderRst } from '@seqyuan/rst-renderer'
+
+// Step 1: Template → RST
+const rst = renderTemplate(template, context)
+
+// Step 2: RST → HTML
+const html = renderRst(rst)
+```
+
+### Annopi Compatibility
+
+The template engine is designed to be compatible with annopi-style RST
+report templates. Both `renderRstTemplate()` (one-step) and
+`renderTemplate()` + `renderRst()` (two-step) workflows are supported.

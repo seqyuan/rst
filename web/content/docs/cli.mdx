@@ -1,0 +1,46 @@
+---
+title: CLI Tool
+description: Command-line interface for rendering RST to HTML, Markdown, or React
+---
+
+## CLI Tool
+
+The `@seqyuan/rst-cli` package provides a `rst-render` command for
+converting RST files from the terminal.
+
+### Installation
+
+```bash
+pnpm add -g @seqyuan/rst-cli
+```
+
+### Usage
+
+```bash
+# HTML output (default)
+rst-render input.rst
+
+# HTML to file
+rst-render input.rst -o output.html
+
+# Markdown output
+rst-render input.rst --md
+
+# React component output
+rst-render input.rst --react
+
+# Jinja2 template rendering
+rst-render template.rst.j2 -t -d data.json -v title="My Report"
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output <path>` | Write output to file (default: stdout) |
+| `--md, --markdown` | Output Markdown instead of HTML |
+| `--react` | Output React component code |
+| `-t, --template` | Render as Jinja2 template, then to HTML |
+| `-d, --data <path>` | JSON file with template context data |
+| `-v, --var key=value` | Template variable (repeatable) |
+| `-h, --help` | Show help message |

@@ -1,0 +1,86 @@
+---
+title: React Rendering
+description: Render RST to React component trees with custom component mapping
+---
+
+## React Renderer
+
+The React renderer converts RST documents to React element trees using
+`createElement`. Each RST node type maps to a configurable React component.
+
+### Basic Usage
+
+```tsx
+import { ReactRenderer } from '@seqyuan/rst-renderer/react'
+
+const document = parser.parse({ input: rstSource }).document
+const renderer = new ReactRenderer()
+
+function MyRstPage() {
+  return renderer.render(document)
+}
+```
+
+### Custom Components
+
+Override any node type's component:
+
+```tsx
+import { ReactRenderer } from '@seqyuan/rst-renderer/react'
+import type { RstComponentMap } from '@seqyuan/rst-renderer/react'
+
+const components: RstComponentMap = {
+  Section: ({ node, children }) => (
+    <div className="my-section">
+      <h2>{node.title}</h2>
+      {children}
+    </div>
+  ),
+  Code: ({ node }) => (
+    <pre className="bg-gray-900 text-white p-4 rounded">
+      <code>{node.text}</code>
+    </pre>
+  ),
+}
+
+const renderer = new ReactRenderer({ components })
+```
+
+### Component Map
+
+All available component overrides:
+
+| Component | Props |
+|-----------|-------|
+| `Document` | `{ node, children }` |
+| `Section` | `{ node, children }` |
+| `Paragraph` | `{ node, children }` |
+| `Text` | `{ node }` |
+| `Emphasis` | `{ node, children }` |
+| `StrongEmphasis` | `{ node, children }` |
+| `InlineLiteral` | `{ node }` |
+| `HyperlinkRef` | `{ node }` |
+| `BulletList` | `{ node, children }` |
+| `EnumeratedList` | `{ node, children }` |
+| `LiteralBlock` | `{ node }` |
+| `Blockquote` | `{ node, children }` |
+| `Directive` | `{ node, children }` |
+| `Table` | `{ node, children }` |
+
+### Vite Integration
+
+```ts
+// vite.config.ts
+import rst from '@seqyuan/vite-plugin-rst'
+
+export default { plugins: [rst()] }
+```
+
+```tsx
+// In your component
+import { html } from './documentation.rst'
+// html = rendered HTML string
+
+// Or as React component:
+// import RstPage from './documentation.rst?react'
+```
