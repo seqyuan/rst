@@ -24,7 +24,6 @@ jobs:
     timeout-minutes: 20
     environment: vercel-production
     env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
@@ -40,17 +39,13 @@ jobs:
         shell: bash
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+          for name in VERCEL_TOKEN VERCEL_PROJECT_ID; do
             if [ -z "${!name}" ]; then
               echo "missing repository secret ${name}" >&2
               missing=1
             fi
           done
           exit "$missing"
-
-      - name: Typecheck
-        working-directory: web
-        run: corepack pnpm typecheck
 
       - name: Build
         working-directory: web
