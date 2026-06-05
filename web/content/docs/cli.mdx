@@ -65,6 +65,15 @@ Save this as `scrna-report.rst`:
 :物种: Human (GRCh38)
 :Cell Ranger 版本: 8.0.1
 
+.. container:: report-header
+
+   .. image:: assets/seqyuan-logo.png
+      :width: 160px
+      :alt: SeqYuan Logo
+
+   项目编号：PRJ-2026-001
+   分析日期：2026-06-05
+
 ----
 
 分析概览
@@ -292,6 +301,15 @@ Here's what this RST document looks like when rendered with rst-renderer:
 
   <hr className="my-4" />
 
+  {/* Logo + Header */}
+  <div className="flex items-center justify-between mb-6 p-4 border rounded-lg bg-fd-muted/20">
+    <img src="/assets/seqyuan-logo.png" alt="SeqYuan Logo" className="h-10" />
+    <div className="text-right text-sm">
+      <div className="font-semibold">项目编号：PRJ-2026-001</div>
+      <div className="text-fd-muted-foreground">分析日期：2026-06-05</div>
+    </div>
+  </div>
+
   <h3 id="分析概览">分析概览</h3>
   <p>本报告使用 <strong>Cell Ranger 8.0.1</strong> 对 <code>3</code> 个单细胞样本进行了比对和定量分析。所有样本均为 10x Genomics 3' Single Cell Gene Expression v3.1 平台测序。</p>
 
@@ -441,3 +459,101 @@ rst-render scrna-report.rst -o scrna-report.html
 # Or render to Markdown
 rst-render scrna-report.rst --md -o scrna-report.md
 ```
+
+## Adding Your Company Logo
+
+The RST ``.. image::`` directive handles logos natively. Place your logo
+file alongside the RST source and reference it by relative path:
+
+```rst
+.. image:: assets/my-company-logo.png
+   :width: 160px
+   :alt: Company Logo
+```
+
+**Architecture notes:**
+
+- The builtin parser and rst-compiler adapter both support ``.. image::``
+- Images are referenced by path; they are **not embedded** in the HTML by default
+- Use relative paths that work in your deployment context
+- For standalone HTML (see below), images can be base64-inlined
+
+## Standalone HTML (Self-Contained File)
+
+When you need to send a report as a **single HTML file** to clients — with
+all CSS, images, and fonts embedded — use the bundling script:
+
+### Bundling Script
+
+Save this as `bundle-html.cjs` in your project:
+
+```js
+// bundle-html.cjs — Inline CSS, JS, and images into a single HTML file
+const fs = require('fs')
+const path = require('path')
+
+const htmlFile = process.argv[2] || 'output.html'
+const outFile = process.argv[3] || htmlFile.replace('.html', '-standalone.html')
+const baseDir = path.dirname(path.resolve(htmlFile))
+
+let html = fs.readFileSync(htmlFile, 'utf-8')
+
+// Inline local CSS
+html = html.replace(
+  /<link[^>]+href="([^"]+\.css)"[^>]*>/gi,
+  (match, href) => {
+    const cssPath = path.resolve(baseDir, href)
+    if (fs.existsSync(cssPath)) {
+      return `<style>\n${fs.readFileSync(cssPath, 'utf-8')}\n</style>`
+    }
+    return match
+  }
+)
+
+// Inline local images as base64
+html = html.replace(
+  /<img[^>]+src="([^"]+)"[^>]*>/gi,
+  (match, src) => {
+    if (src.startsWith('http')) return match
+    const imgPath = path.resolve(baseDir, src)
+    if (!fs.existsSync(imgPath)) return match
+    const ext = path.extname(imgPath).slice(1).replace('svg', 'svg+xml')
+    const data = fs.readFileSync(imgPath)
+    const b64 = data.toString('base64')
+    return match.replace(src, `data:image/${ext};base64,${b64}`)
+  }
+)
+
+// Inline local JS
+html = html.replace(
+  /<script[^>]+src="([^"]+\.js)"[^>]*><\/script>/gi,
+  (match, src) => {
+    const jsPath = path.resolve(baseDir, src)
+    if (fs.existsSync(jsPath)) {
+      return `<script>${fs.readFileSync(jsPath, 'utf-8')}</script>`
+    }
+    return match
+  }
+)
+
+fs.writeFileSync(outFile, html)
+console.log(`Written: ${outFile} (${(fs.statSync(outFile).size / 1024).toFixed(1)} KB)`)
+```
+
+### Usage
+
+```bash
+# 1. Generate HTML report
+rst-render report.rst -o report.html
+
+# 2. Bundle into standalone file
+node bundle-html.cjs report.html
+# → report-standalone.html  (images + CSS inlined)
+
+# 3. Send to client — single file, no dependencies
+open report-standalone.html
+```
+
+> **Tip:** The bundled file includes images as base64 (larger but self-contained).
+> For SVG logos, the size increase is negligible. For large PNGs, consider
+> linking to a CDN instead.
