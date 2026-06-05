@@ -154,6 +154,23 @@ KO_Treated_48h
    该样本线粒体比例偏高（8.3%），可能存在细胞活性下降。
    建议在后续差异分析中注意此因素。
 
+UMAP 图集
+---------
+
+.. container:: image-gallery
+
+   .. image:: upload/plots/WT_Control_umap.png
+      :width: 400px
+      :alt: WT_Control
+
+   .. image:: upload/plots/KO_Treated_24h_umap.png
+      :width: 400px
+      :alt: KO_Treated_24h
+
+   .. image:: upload/plots/KO_Treated_48h_umap.png
+      :width: 400px
+      :alt: KO_Treated_48h
+
 质控汇总
 --------
 
@@ -341,6 +358,9 @@ Here's what this RST document looks like when rendered with rst-renderer:
     <p className="font-semibold text-sm text-yellow-700 dark:text-yellow-300">Warning</p>
     <p className="text-sm">该样本线粒体比例偏高（8.3%），可能存在细胞活性下降。建议在后续差异分析中注意此因素。</p>
   </div>
+
+  <h3 id="umap-图集" className="mt-6">UMAP 图集</h3>
+  <ImageSlider images={['WT_Control UMAP', 'KO_Treated_24h UMAP', 'KO_Treated_48h UMAP']} />
 
   <h3 id="质控汇总" className="mt-6">质控汇总</h3>
   <table className="w-full text-sm border my-3">
