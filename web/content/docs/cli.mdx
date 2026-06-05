@@ -55,25 +55,23 @@ images, links, and CSV tables — all in one document.
 Save this as `scrna-report.rst`:
 
 ```rst
+.. container:: report-header
+
+   .. image:: assets/seqyuan-logo.png
+      :width: 140px
+      :alt: SeqYuan Logo
+
+   项目编号 PRJ-2026-001  ·  分析日期 2026-06-05
+
 单细胞 RNA-seq 分析报告
 ========================
 
 项目信息
 --------
 
-:项目名称: PRJ-2026-001
-:分析日期: 2026-06-05
 :物种: Human (GRCh38)
 :Cell Ranger 版本: 8.0.1
-
-.. container:: report-header
-
-   .. image:: assets/seqyuan-logo.png
-      :width: 160px
-      :alt: SeqYuan Logo
-
-   项目编号：PRJ-2026-001
-   分析日期：2026-06-05
+:测序平台: 10x Genomics 3' scGEX v3.1
 
 ----
 
@@ -81,8 +79,7 @@ Save this as `scrna-report.rst`:
 --------
 
 本报告使用 **Cell Ranger 8.0.1** 对 ``3`` 个单细胞样本
-进行了比对和定量分析。所有样本均为 10x Genomics
-3' Single Cell Gene Expression v3.1 平台测序。
+进行了比对和定量分析。
 
 样本信息
 ~~~~~~~~
@@ -279,37 +276,16 @@ Here's what this RST document looks like when rendered with rst-renderer:
 
   <div className="p-6 max-h-[800px] overflow-y-auto">
 
-  <h2 id="单细胞-rna-seq-分析报告">单细胞 RNA-seq 分析报告</h2>
-
-  <dl className="mb-6">
-    <div className="flex gap-2">
-      <dt className="font-semibold">项目名称:</dt>
-      <dd>PRJ-2026-001</dd>
-    </div>
-    <div className="flex gap-2">
-      <dt className="font-semibold">分析日期:</dt>
-      <dd>2026-06-05</dd>
-    </div>
-    <div className="flex gap-2">
-      <dt className="font-semibold">物种:</dt>
-      <dd>Human (GRCh38)</dd>
-    </div>
-    <div className="flex gap-2">
-      <dt className="font-semibold">Cell Ranger 版本:</dt>
-      <dd>8.0.1</dd>
-    </div>
-  </dl>
-
-  <hr className="my-4" />
-
-  {/* Logo + Header */}
-  <div className="flex items-center justify-between mb-6 p-4 border rounded-lg bg-fd-muted/20">
+  {/* Report Header: Logo + Meta */}
+  <div className="flex items-center justify-between mb-8 pb-6 border-b-2 border-fd-primary/20">
     <img src="/assets/seqyuan-logo.png" alt="SeqYuan Logo" className="h-10" />
-    <div className="text-right text-sm">
-      <div className="font-semibold">项目编号：PRJ-2026-001</div>
-      <div className="text-fd-muted-foreground">分析日期：2026-06-05</div>
+    <div className="text-right text-xs text-fd-muted-foreground space-y-0.5">
+      <div>项目编号 <span className="font-semibold text-fd-foreground">PRJ-2026-001</span></div>
+      <div>分析日期 <span className="font-semibold text-fd-foreground">2026-06-05</span></div>
     </div>
   </div>
+
+  <h2 id="单细胞-rna-seq-分析报告">单细胞 RNA-seq 分析报告</h2>
 
   <h3 id="分析概览">分析概览</h3>
   <p>本报告使用 <strong>Cell Ranger 8.0.1</strong> 对 <code>3</code> 个单细胞样本进行了比对和定量分析。所有样本均为 10x Genomics 3' Single Cell Gene Expression v3.1 平台测序。</p>
