@@ -38,7 +38,7 @@ const html = renderRstTemplate(template, {
 
 #### Variables
 
-```jinja2
+```
 {{ variable }}
 {{ user.name }}
 {{ items["key"] }}
@@ -46,7 +46,7 @@ const html = renderRstTemplate(template, {
 
 #### Filters
 
-```jinja2
+```
 {{ name|default("N/A") }}
 {{ items|length }}
 {{ text|upper }}
@@ -63,7 +63,7 @@ const html = renderRstTemplate(template, {
 
 #### For Loops
 
-```jinja2
+```
 {% for item in items %}
   {{ loop.index }}. {{ item }}
 {% endfor %}
@@ -74,7 +74,7 @@ Loop variables: `loop.index`, `loop.index0`, `loop.first`, `loop.last`,
 
 #### Nested Loops
 
-```jinja2
+```
 {% for group in groups %}
 Group: {{ group.name }}
 {% for item in group.items %}
@@ -85,7 +85,7 @@ Group: {{ group.name }}
 
 #### If/Else
 
-```jinja2
+```
 {% if condition %}
   yes
 {% else %}
@@ -99,7 +99,7 @@ Group: {{ group.name }}
 
 #### Comments
 
-```jinja2
+```
 {# this is a comment #}
 ```
 
