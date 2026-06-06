@@ -6,7 +6,7 @@ description: Render RST to HTML with syntax highlighting, math, and directives
 ## HTML Renderer
 
 The HTML renderer converts RST documents to semantic HTML with support for
-11 directive plugins.
+report-oriented directive plugins.
 
 ### Basic Usage
 
@@ -37,12 +37,24 @@ This is **bold** text.
 | `mathPlugin` | `math` | KaTeX rendering (auto-detected) |
 | `admonitionPlugin` | `note`, `warning`, `tip`, `important`, `caution`, `danger`, `hint`, `attention`, `error`, `admonition` | Callout boxes |
 | `csvTablePlugin` | `csv-table` | CSV table with `:file:` or inline body |
-| `imagePlugin` | `image`, `figure` | Image with alt/width/height/align |
+| `listTablePlugin` | `list-table` | Report-friendly table syntax with `:header-rows:` and `:widths:` |
 | `rawPlugin` | `raw` | Raw HTML passthrough |
 | `replacePlugin` | `replace`, `unicode` | Text substitution |
 | `containerPlugin` | `container` | Custom CSS container |
-| `contentsPlugin` | `contents`, `toctree` | TOC placeholder |
-| `includePlugin` | `include` | File include placeholder |
+| `contentsPlugin` | `contents`, `toctree` | Lightweight heading TOC and explicit page-card navigation |
+| `includePlugin` | `include` | Build-time include marker; pair with include expansion for actual reuse |
+
+### Report-Oriented RST Features
+
+This renderer intentionally prioritizes reusable report building blocks over
+full Sphinx compatibility.
+
+- `.. list-table::` is supported for data-driven report tables
+- `.. contents::` builds an in-document heading TOC
+- `.. toctree::` renders explicit related-page entries, not a full doc graph
+- `.. include::` is best treated as a preprocessing step
+
+If you need syntax details, see [RST Writing Rules](/docs/rst-rules).
 
 ### Custom Directives
 
@@ -78,3 +90,18 @@ pnpm add katex
 ```
 
 Without KaTeX, math renders as LaTeX source wrapped in `<div class="math">`.
+
+### Include Expansion
+
+The renderer itself does not resolve files from `.. include::` automatically.
+Use include expansion before parsing:
+
+```ts
+import { renderRst } from '@seqyuan/rst-renderer'
+
+const html = renderRst(source, {
+  includeResolver: { baseDir: process.cwd() },
+})
+```
+
+This is designed for reusable report fragments, not full Sphinx include semantics.

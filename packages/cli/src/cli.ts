@@ -4,10 +4,10 @@
 // ---------------------------------------------------------------------------
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { resolve, dirname, extname, basename } from 'node:path'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { renderRst, renderRstTemplate, MarkdownRenderer, createBuiltinParser } = require('@seqyuan/rst-renderer')
+import { resolve, dirname, extname } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { buildTemplateContext, parseScanSpec } from './context'
+import type { ScanSpec } from './context'
 
 // ---------------------------------------------------------------------------
 // Argument parsing
@@ -16,15 +16,24 @@ const { renderRst, renderRstTemplate, MarkdownRenderer, createBuiltinParser } = 
 interface Args {
   input?: string
   output?: string
-  format: 'html' | 'md' | 'react' | 'rst'
+  format: 'html' | 'md' | 'react' | 'template'
   data?: string
   vars: Record<string, string>
+  scans: ScanSpec[]
+  expandIncludes: boolean
   standalone: boolean
   help: boolean
 }
 
-function parseArgs(raw: string[]): Args {
-  const args: Args = { format: 'html', vars: {}, help: false, standalone: false }
+export function parseArgs(raw: string[]): Args {
+  const args: Args = {
+    format: 'html',
+    vars: {},
+    scans: [],
+    expandIncludes: false,
+    help: false,
+    standalone: false,
+  }
   let i = 0
 
   while (i < raw.length) {
@@ -48,11 +57,14 @@ function parseArgs(raw: string[]): Args {
         break
       case '--template':
       case '-t':
-        args.format = 'rst'
+        args.format = 'template'
         break
       case '--standalone':
       case '-s':
         args.standalone = true
+        break
+      case '--expand-includes':
+        args.expandIncludes = true
         break
       case '--data':
       case '-d':
@@ -66,6 +78,11 @@ function parseArgs(raw: string[]): Args {
           if (eq > 0) args.vars[kv.slice(0, eq)] = kv.slice(eq + 1)
           else args.vars[kv] = 'true'
         }
+        break
+      }
+      case '--scan': {
+        const scan = raw[++i]
+        if (scan) args.scans.push(parseScanSpec(scan, args.scans.length))
         break
       }
       default:
@@ -84,7 +101,7 @@ function parseArgs(raw: string[]): Args {
 // Help
 // ---------------------------------------------------------------------------
 
-const HELP = `
+export const HELP = `
 rst-render — Render reStructuredText to HTML, Markdown, or React
 
 Usage:
@@ -95,16 +112,18 @@ Options:
   -s, --standalone      Bundle into self-contained HTML (inline CSS + images)
   --md, --markdown       Output Markdown instead of HTML
   --react                Output React component code
-  -t, --template         Render as Jinja2 template → RST, then to HTML
+  -t, --template         Render input as a Jinja2 template before HTML output
   -d, --data <path>      JSON file with template context data
   -v, --var key=value    Template variable (repeatable)
+  --scan name=glob       Scan files relative to the input file directory
+  --expand-includes      Resolve .. include:: directives before parsing
   -h, --help             Show this help
 
 Examples:
   rst-render README.rst
   rst-render report.rst -o report.html --standalone
   rst-render docs.rst --md
-  rst-render template.rst.j2 -t -d data.json -v title="My Report" -o out.html -s
+  rst-render template.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png -o out.html -s
 `.trim()
 
 // ---------------------------------------------------------------------------
@@ -158,8 +177,12 @@ function makeStandalone(html: string, inputPath: string): string {
 // Main
 // ---------------------------------------------------------------------------
 
-function main() {
-  const args = parseArgs(process.argv.slice(2))
+async function loadRenderer() {
+  return import('@seqyuan/rst-renderer')
+}
+
+export async function main(rawArgs = process.argv.slice(2)) {
+  const args = parseArgs(rawArgs)
 
   if (args.help || !args.input) {
     console.log(HELP)
@@ -176,35 +199,45 @@ function main() {
     process.exit(1)
   }
 
-  // Load template data if specified
-  let templateContext: Record<string, unknown> = { ...args.vars }
-  if (args.data) {
-    try {
-      const dataJson = JSON.parse(readFileSync(resolve(args.data), 'utf-8'))
-      templateContext = { ...templateContext, ...dataJson }
-    } catch {
-      console.error(`Error: Cannot parse data file "${args.data}"`)
-      process.exit(1)
-    }
+  let templateContext: Record<string, unknown> = {}
+  try {
+    templateContext = buildTemplateContext(args.data, args.vars, args.scans, dirname(inputPath))
+  } catch (err) {
+    console.error('Error:', err instanceof Error ? err.message : String(err))
+    process.exit(1)
   }
 
   let output: string
 
   try {
+    const {
+      renderRst,
+      renderRstTemplate,
+      MarkdownRenderer,
+      createBuiltinParser,
+      expandIncludes,
+    } = await loadRenderer()
+
+    const includeResolver = args.expandIncludes
+      ? { baseDir: dirname(inputPath) }
+      : undefined
+
     switch (args.format) {
       case 'md': {
         const parser = createBuiltinParser()
-        const document = parser.parse({ input: source }).document
+        const rstSource = includeResolver ? expandIncludes(source, includeResolver) : source
+        const document = parser.parse({ input: rstSource }).document
         output = new MarkdownRenderer({ headingOffset: 1 }).render(document)
         break
       }
-      case 'rst': {
-        output = renderRstTemplate(source, templateContext)
+      case 'template': {
+        output = renderRstTemplate(source, templateContext, { includeResolver })
         break
       }
       case 'react': {
         const parser = createBuiltinParser()
-        const document = parser.parse({ input: source }).document
+        const rstSource = includeResolver ? expandIncludes(source, includeResolver) : source
+        const document = parser.parse({ input: rstSource }).document
         output = `import { ReactRenderer } from '@seqyuan/rst-renderer/react'
 
 const renderer = new ReactRenderer()
@@ -216,7 +249,7 @@ export default function RstDocument() {
       }
       case 'html':
       default:
-        output = renderRst(source)
+        output = renderRst(source, { includeResolver })
         break
     }
   } catch (err) {
@@ -225,7 +258,7 @@ export default function RstDocument() {
   }
 
   // Standalone bundling
-  if (args.standalone && args.format === 'html') {
+  if (args.standalone && (args.format === 'html' || args.format === 'template')) {
     output = makeStandalone(output, inputPath)
   }
 
@@ -238,4 +271,6 @@ export default function RstDocument() {
   }
 }
 
-main()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main()
+}

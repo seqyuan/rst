@@ -31,9 +31,9 @@ export const csvTablePlugin: DirectivePlugin = {
       }
 
       // Inline CSV from directive body
-      const bodyText = directive.children
+      const bodyText = (directive.rawBody ?? directive.children
         .map(c => c.text)
-        .join('\n')
+        .join('\n'))
         .trim()
 
       if (!bodyText) {

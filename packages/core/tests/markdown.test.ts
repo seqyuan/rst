@@ -56,4 +56,59 @@ describe('MarkdownRenderer', () => {
     const result = md('Doc\n===\n\n.. code:: python\n\n   print("hello")')
     expect(result).toContain('```python')
   })
+
+  it('renders list-table directive body as best-effort Markdown', () => {
+    const result = md(`Doc
+===
+
+.. list-table::
+   :header-rows: 1
+
+   * - Sample
+     - Note
+   * - WT_Control
+     - Wild type`)
+
+    expect(result).toContain('Sample')
+    expect(result).toContain('WT\\_Control')
+    expect(result).toContain('Wild type')
+  })
+
+  it('renders contents directive as Markdown links', () => {
+    const result = md(`Doc
+===
+
+.. contents:: Outline
+   :depth: 2
+
+Section A
+---------
+
+Section B
+---------
+
+Subsection
+~~~~~~~~~~`)
+
+    expect(result).toContain('**Outline**')
+    expect(result).toContain('[Doc](#doc)')
+    expect(result).toContain('[Section A](#section-a)')
+    expect(result).toContain('[Section B](#section-b)')
+    expect(result).not.toContain('[Subsection](#subsection)')
+  })
+
+  it('renders toctree directive as Markdown link list', () => {
+    const result = md(`Doc
+===
+
+.. toctree::
+   :caption: Related Reports
+
+   qc-summary
+   UMAP Gallery <reports/umap-gallery.html>`)
+
+    expect(result).toContain('**Related Reports**')
+    expect(result).toContain('[qc summary](qc-summary)')
+    expect(result).toContain('[UMAP Gallery](reports/umap-gallery.html)')
+  })
 })

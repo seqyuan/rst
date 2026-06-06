@@ -1,0 +1,498 @@
+---
+title: RST Writing Rules
+description: reStructuredText writing guide for rst-renderer, including project-specific template rules
+---
+
+## RST Writing Rules
+
+This page is a practical writing guide for `rst-renderer`.
+
+It combines:
+
+- common reStructuredText conventions from Docutils / Sphinx
+- the subset that `rst-renderer` supports directly
+- project-specific extensions such as Jinja2 templating and CLI scan variables
+
+If you already know Markdown, the biggest difference is that RST uses
+indentation and directives much more heavily.
+
+## Scope
+
+This project is **not** a full Sphinx replacement.
+
+- Core RST structure is supported: headings, paragraphs, lists, literal blocks, transitions, directives, tables
+- Many common directives are supported directly by the renderer
+- `contents` and `toctree` are supported in a lightweight, report-oriented form
+- `include` can stay as a placeholder, or be explicitly expanded by the app / CLI
+- Templating with Jinja2-style syntax is a project extension, not standard reStructuredText
+
+## Basic Structure
+
+### Headings
+
+RST headings are defined by the line above or below the title.
+
+```rst
+Document Title
+==============
+
+Section
+-------
+
+Subsection
+~~~~~~~~~~
+```
+
+Use a consistent heading hierarchy within one document.
+
+### Paragraphs
+
+Paragraphs are separated by blank lines.
+
+```rst
+This is the first paragraph.
+
+This is the second paragraph.
+```
+
+### Inline Markup
+
+```rst
+*italic*
+**bold**
+``inline code``
+```
+
+Supported by `rst-renderer`:
+
+- emphasis: `*text*`
+- strong emphasis: `**text**`
+- inline literal: ````code````
+
+## Lists
+
+### Bullet Lists
+
+```rst
+- item one
+- item two
+- item three
+```
+
+You can also use `*` or `+`, but keep one style per list.
+
+### Enumerated Lists
+
+```rst
+1. first
+2. second
+3. third
+```
+
+### Indentation Rule
+
+Indentation matters.
+
+```rst
+- item one
+  continued text for item one
+- item two
+```
+
+For nested content under a list item, indent it under the item body.
+
+## Literal Blocks and Code
+
+### Literal Block with `::`
+
+```rst
+Example::
+
+   print("hello")
+```
+
+### Code Directive
+
+```rst
+.. code:: python
+
+   def hello():
+       print("world")
+```
+
+Supported aliases:
+
+- `code`
+- `code-block`
+- `sourcecode`
+- `highlight`
+
+Notes:
+
+- HTML rendering uses Shiki automatically if installed
+- Markdown rendering emits fenced code blocks
+
+## Links and Targets
+
+External links in classic RST style:
+
+```rst
+`OpenAI <https://openai.com>`_
+```
+
+Named targets are part of common reST, but support may depend on parser backend.
+For straightforward docs, inline external links are the safest choice.
+
+## Transitions and Block Quotes
+
+### Transition
+
+```rst
+----
+```
+
+### Block Quote
+
+Indent quoted content:
+
+```rst
+This is a paragraph.
+
+   This is a block quote.
+```
+
+## Directives
+
+Directives are one of the most important RST features.
+
+General form:
+
+```rst
+.. directive-name:: argument
+   :option: value
+
+   directive body
+```
+
+### Fully Supported Common Directives
+
+#### Image
+
+```rst
+.. image:: assets/logo.png
+   :width: 160px
+   :alt: Company Logo
+```
+
+Supported options:
+
+- `:alt:`
+- `:width:`
+- `:height:`
+- `:align:`
+
+#### Figure
+
+```rst
+.. figure:: assets/plot.png
+
+   Figure caption text.
+```
+
+#### Admonitions
+
+```rst
+.. note::
+
+   Important note.
+
+.. warning::
+
+   Be careful here.
+```
+
+Supported admonitions:
+
+- `admonition`
+- `attention`
+- `caution`
+- `danger`
+- `error`
+- `hint`
+- `important`
+- `note`
+- `tip`
+- `warning`
+
+#### Math
+
+```rst
+.. math::
+
+   E = mc^2
+```
+
+Notes:
+
+- If `katex` is installed, HTML output is rendered math
+- Otherwise it falls back to escaped LaTeX source in a math container
+
+#### CSV Table
+
+```rst
+.. csv-table:: QC Summary
+   :header-rows: 1
+
+   sample,cells,reads
+   S1,5234,45200
+   S2,4891,42100
+```
+
+Or:
+
+```rst
+.. csv-table:: QC Summary
+   :file: summary.csv
+```
+
+#### List Table
+
+```rst
+.. list-table:: Sample Summary
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Sample
+     - Note
+   * - WT_Control
+     - Wild type
+   * - KO_Treated
+     - Knockout
+```
+
+Recommended for generated reports when you want rows to come from template loops.
+
+#### Container
+
+```rst
+.. container:: report-header
+
+   Custom wrapped content here.
+```
+
+This is useful for report-specific layout hooks.
+
+#### Raw HTML
+
+```rst
+.. raw:: html
+
+   <div class="custom-html">hello</div>
+```
+
+Use this sparingly.
+
+### Supported but Lightweight / Build-System Dependent
+
+These are recognized, but not implemented as full Sphinx behavior:
+
+#### Contents / Toctree
+
+```rst
+.. contents:: Report Outline
+   :depth: 2
+
+.. toctree::
+   :caption: Related Pages
+
+   qc-summary
+   UMAP Gallery <reports/umap-gallery.html>
+```
+
+In this project they are intentionally lighter than Sphinx:
+
+- `contents` builds a table of contents from headings in the current document
+- `:depth:` limits how deep heading levels are included
+- `toctree` renders only the entries you explicitly list in the directive body
+- `:caption:` is supported for `toctree`
+- this does not build a full multi-document Sphinx project graph
+
+#### Include
+
+```rst
+.. include:: shared/intro.rst
+```
+
+By default, `include` is not expanded by the HTML renderer itself and behaves
+like a build-time concern.
+
+But this project now supports **optional include expansion** before parsing:
+
+- core API: pass `includeResolver: { baseDir }` to `renderRst()`
+- CLI: use `--expand-includes`
+
+This is intentionally lighter than full Sphinx `include` semantics. The goal
+is reusable report fragments, not full Sphinx compatibility.
+
+## Tables
+
+Besides `csv-table`, parser backends can also represent normal RST tables.
+For portable report generation, `csv-table` is usually the most stable choice.
+
+## Comments
+
+RST comments start with `..`:
+
+```rst
+.. this is a comment
+```
+
+Template comments are different and use Jinja2 syntax:
+
+```jinja2
+{# this is a template comment #}
+```
+
+## Template Rules in This Project
+
+This section is project-specific. It is not standard reStructuredText.
+
+### Variables
+
+```jinja2
+{{ project_name }}
+{{ sample.name }}
+{{ items["key"] }}
+```
+
+### Loops
+
+```jinja2
+{% for sample in samples %}
+- {{ loop.index }}. {{ sample.name }}
+{% endfor %}
+```
+
+Supported loop variables:
+
+- `loop.index`
+- `loop.index0`
+- `loop.first`
+- `loop.last`
+- `loop.length`
+- `loop.revindex`
+- `loop.revindex0`
+
+### Conditionals
+
+```jinja2
+{% if sample.qc_pass %}
+PASS
+{% else %}
+FAIL
+{% endif %}
+
+{% if not hide_summary %}
+Summary section
+{% endif %}
+```
+
+### Filters
+
+```jinja2
+{{ name|default("N/A") }}
+{{ items|length }}
+{{ text|upper }}
+{{ text|lower }}
+{{ items|join(", ") }}
+{{ obj|tojson }}
+{{ value|int }}
+{{ value|float }}
+{{ value|abs }}
+{{ items|first }}
+{{ items|last }}
+{{ text|trim }}
+```
+
+### Recommended Two-Step Mental Model
+
+When you write templated reports, think of it as:
+
+1. Jinja2-like template expansion
+2. Expanded RST parsed and rendered
+
+That means the generated text still has to be valid RST after template substitution.
+
+For example, this is good:
+
+```jinja2
+{% for sample in samples %}
+{{ sample.name }}
+{{ '~' * sample.name.length }}
+{% endfor %}
+```
+
+The final output becomes normal RST headings.
+
+## CLI-Specific Context Rules
+
+The CLI supports three main sources of template context:
+
+- `-d, --data <path>`: JSON object file
+- `-v, --var key=value`: direct variable overrides
+- `--scan name=glob`: wildcard file scanning
+
+Example:
+
+```bash
+rst-render report.rst.j2 \
+  -t \
+  -d project.json \
+  --scan plots=upload/plots/*_umap.png \
+  --expand-includes \
+  -v analysis_date=2026-06-06
+```
+
+### Scan Variables
+
+`--scan plots=upload/plots/*_umap.png` injects:
+
+- `plots`
+- `scans.plots`
+
+Each entry contains:
+
+```ts
+{
+  path: 'upload/plots/WT_Control_umap.png',
+  absPath: '/abs/path/to/file.png',
+  name: 'WT_Control_umap.png',
+  stem: 'WT_Control_umap',
+  ext: '.png',
+  dir: 'upload/plots',
+  size: 182734
+}
+```
+
+This is the recommended way to write project-level bioinformatics reports.
+Do not hardcode every sample image path into the template if the file set can
+be discovered from a naming convention or wildcard.
+
+## Writer Guidelines
+
+For this project, these habits work best:
+
+- Prefer `csv-table` over hand-written grid tables for generated reports
+- Prefer `.. code::` over raw literal blocks when language is known
+- Prefer `.. image:: {{ plot.path }}` over hardcoded sample image paths in templates
+- Keep indentation exact; many RST issues are whitespace issues
+- Keep templates data-driven: project metadata in JSON, repeated sections in loops
+- Use `container` for report-specific layout hooks instead of raw HTML when possible
+
+## References
+
+This page is based on common public reStructuredText conventions from Docutils
+and Sphinx, then narrowed to what `rst-renderer` actually supports.
+
+- Docutils reStructuredText Quick Start: https://docutils.sourceforge.io/docs/user/rst/quickstart.html
+- Sphinx reStructuredText Basics: https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html

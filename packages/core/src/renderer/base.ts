@@ -11,6 +11,8 @@ import type { RstNode, RstDocument } from '../ast/types'
 export interface RenderContext {
   /** Append raw output (typically HTML string or markdown text). */
   write(s: string): void
+  /** Document being rendered. Used by document-level directives such as contents. */
+  document: RstDocument
   /** Current list of registered footnote definitions, keyed by label. */
   footnotes: Map<string, string>
   /** Current list of registered citation definitions, keyed by label. */

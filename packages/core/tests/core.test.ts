@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { renderRst, createBuiltinParser, HtmlRenderer, builtinDirectivePlugins } from '../src/index.ts'
 
 // ---------------------------------------------------------------------------
@@ -75,6 +78,27 @@ describe('Builtin Parser', () => {
     expect(directive).toBeDefined()
     expect(directive!.type).toBe('Directive')
   })
+
+  it('preserves directive raw body across blank lines', () => {
+    const parser = createBuiltinParser()
+    const input = `Doc
+===
+
+.. note::
+
+   First line.
+
+   Second line.`
+    const result = parser.parse({ input })
+
+    const section = result.document.children[0]!
+    const directive = section.children.find(c => c.type === 'Directive')
+    expect(directive).toBeDefined()
+    if (directive?.type === 'Directive') {
+      expect(directive.rawBody).toContain('First line.')
+      expect(directive.rawBody).toContain('Second line.')
+    }
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -132,6 +156,100 @@ describe('HtmlRenderer', () => {
     expect(html).toContain('This')
   })
 
+  it('renders list-table directives with plugins installed', () => {
+    const input = `Doc
+===
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Sample
+     - Note
+   * - WT_Control
+     - Wild type
+   * - KO_Treated
+     - Knockout`
+
+    const parser = createBuiltinParser()
+    const result = parser.parse({ input })
+
+    const renderer = new HtmlRenderer()
+    for (const plugin of builtinDirectivePlugins) {
+      plugin.install(renderer)
+    }
+
+    const html = renderer.render(result.document)
+    expect(html).toContain('<table class="list-table">')
+    expect(html).toContain('<th style="width:20%">Sample</th>')
+    expect(html).toContain('<td style="width:80%">Wild type</td>')
+    expect(html).toContain('KO_Treated')
+  })
+
+  it('renders contents directives as a heading TOC card', () => {
+    const input = `Doc
+===
+
+.. contents:: Report Outline
+   :depth: 2
+
+Section A
+---------
+
+Intro.
+
+Section B
+---------
+
+Subsection
+~~~~~~~~~~
+
+Details.`
+
+    const parser = createBuiltinParser()
+    const result = parser.parse({ input })
+
+    const renderer = new HtmlRenderer()
+    for (const plugin of builtinDirectivePlugins) {
+      plugin.install(renderer)
+    }
+
+    const html = renderer.render(result.document)
+    expect(html).toContain('<nav class="rst-contents-card"')
+    expect(html).toContain('Report Outline')
+    expect(html).toContain('href="#doc"')
+    expect(html).toContain('href="#section-a"')
+    expect(html).toContain('href="#section-b"')
+    expect(html).not.toContain('href="#subsection"')
+  })
+
+  it('renders toctree directives as explicit entry cards', () => {
+    const input = `Doc
+===
+
+.. toctree::
+   :caption: Next Steps
+
+   qc-summary
+   UMAP Gallery <reports/umap-gallery.html>`
+
+    const parser = createBuiltinParser()
+    const result = parser.parse({ input })
+
+    const renderer = new HtmlRenderer()
+    for (const plugin of builtinDirectivePlugins) {
+      plugin.install(renderer)
+    }
+
+    const html = renderer.render(result.document)
+    expect(html).toContain('<nav class="rst-toctree-card"')
+    expect(html).toContain('Next Steps')
+    expect(html).toContain('href="qc-summary"')
+    expect(html).toContain('>qc summary<')
+    expect(html).toContain('href="reports/umap-gallery.html"')
+    expect(html).toContain('>UMAP Gallery<')
+  })
+
   it('renders an empty document', () => {
     const html = renderRst('')
     expect(html).toBe('')
@@ -161,5 +279,42 @@ describe('Edge cases', () => {
   it('renders transitions', () => {
     const html = renderRst('A\n=\n\nPara 1.\n\n----\n\nPara 2.')
     expect(html).toContain('<hr>')
+  })
+
+  it('optionally expands include directives before parsing', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rst-include-'))
+
+    try {
+      mkdirSync(join(dir, 'shared'), { recursive: true })
+      writeFileSync(join(dir, 'shared', 'intro.rst'), 'Included Section\n----------------\n\nIncluded paragraph.')
+
+      const html = renderRst(`Doc
+===
+
+.. include:: shared/intro.rst
+`, {
+        includeResolver: { baseDir: dir },
+      })
+
+      expect(html).toContain('Included Section')
+      expect(html).toContain('Included paragraph.')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('detects circular include chains', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rst-include-cycle-'))
+
+    try {
+      writeFileSync(join(dir, 'a.rst'), '.. include:: b.rst\n')
+      writeFileSync(join(dir, 'b.rst'), '.. include:: a.rst\n')
+
+      expect(() => renderRst('.. include:: a.rst\n', {
+        includeResolver: { baseDir: dir, maxDepth: 5 },
+      })).toThrow(/Circular include detected/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

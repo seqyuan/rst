@@ -32,6 +32,8 @@ export type { RstParser, RstParserOptions, RstParserOutput } from './parser/inde
 // Parser implementations
 export { createBuiltinParser } from './parser/builtin-parser'
 export { createRstCompilerParser } from './parser/rst-compiler-adapter'
+export { expandIncludes } from './preprocess/includes'
+export type { IncludeExpansionOptions } from './preprocess/includes'
 
 // Renderer
 export { HtmlRenderer } from './renderer/html/index'
@@ -55,6 +57,7 @@ export {
   mathPlugin,
   contentsPlugin,
   csvTablePlugin,
+  listTablePlugin,
   replacePlugin,
   rawPlugin,
   containerPlugin,
@@ -71,12 +74,18 @@ import { HtmlRenderer } from './renderer/html/index'
 import { createBuiltinParser } from './parser/builtin-parser'
 import { builtinDirectivePlugins } from './plugins/directives'
 import type { RstDocument } from './ast/types'
+import { expandIncludes } from './preprocess/includes'
 
 export interface RenderOptions {
   /** Which parser backend to use (default: builtin). */
   parser?: 'builtin' | 'rst-compiler'
   /** Custom directive plugins. */
   plugins?: typeof builtinDirectivePlugins
+  /** Expand .. include:: directives before parsing. */
+  includeResolver?: {
+    baseDir: string
+    maxDepth?: number
+  }
 }
 
 /**
@@ -88,6 +97,10 @@ export interface RenderOptions {
  * ```
  */
 export function renderRst(source: string, options: RenderOptions = {}): string {
+  if (options.includeResolver) {
+    source = expandIncludes(source, options.includeResolver)
+  }
+
   let document: RstDocument
 
   if (options.parser === 'rst-compiler') {

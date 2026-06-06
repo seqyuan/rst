@@ -521,11 +521,13 @@ function resolvePath(obj: unknown, path: string): unknown {
 // ---------------------------------------------------------------------------
 
 import { renderRst } from '../index'
+import type { RenderOptions } from '../index'
 
 export function renderRstTemplate(
   template: string,
   context: TemplateContext = {},
+  renderOptions: RenderOptions = {},
 ): string {
   const rst = renderTemplate(template, context)
-  return renderRst(rst)
+  return renderRst(rst, renderOptions)
 }

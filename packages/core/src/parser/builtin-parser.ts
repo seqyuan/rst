@@ -174,6 +174,7 @@ interface ParserState {
   pos: number
   warnings: string[]
   errors: string[]
+  sectionLevels: Map<string, number>
 }
 
 function peek(state: ParserState): string | null {
@@ -197,7 +198,13 @@ export function createBuiltinParser(): RstParser {
 
     parse(opts: RstParserOptions): RstParserOutput {
       const lines = opts.input.split('\n')
-      const state: ParserState = { lines, pos: 0, warnings: [], errors: [] }
+      const state: ParserState = {
+        lines,
+        pos: 0,
+        warnings: [],
+        errors: [],
+        sectionLevels: new Map(),
+      }
 
       const document: RstDocument = {
         type: 'Document',
@@ -207,7 +214,7 @@ export function createBuiltinParser(): RstParser {
       }
 
       // Parse sections (top-level only initially)
-      document.children = parseSections(state, 1)
+      document.children = parseSections(state)
 
       return {
         document,
@@ -222,7 +229,7 @@ export function createBuiltinParser(): RstParser {
  * Parse top-level sections and content.
  * A section = heading line + decoration line (or decoration + heading + decoration for overline).
  */
-function parseSections(state: ParserState, level: number): RstBlockNode[] {
+function parseSections(state: ParserState): RstBlockNode[] {
   const blocks: RstBlockNode[] = []
 
   while (hasMore(state)) {
@@ -245,10 +252,10 @@ function parseSections(state: ParserState, level: number): RstBlockNode[] {
           // Check for overline (decoration before heading)
           if (tokenizeLine(state.lines[state.pos + 2] ?? '').type === 'text') {
             // This is a section with overline+underline
-            const decoLine = next(state) // decoration
+            next(state) // decoration
             const headingLine = next(state) // title
             next(state) // decoration
-            const section = parseSectionBody(state, level, headingLine)
+            const section = parseSectionBody(state, getSectionLevel(state, nextToken.char), headingLine)
             blocks.push(section)
             continue
           }
@@ -256,7 +263,7 @@ function parseSections(state: ParserState, level: number): RstBlockNode[] {
           // Standard section: heading + underline
           next(state) // heading
           next(state) // decoration
-          const section = parseSectionBody(state, level, line)
+          const section = parseSectionBody(state, getSectionLevel(state, nextToken.char), line)
           blocks.push(section)
           continue
         }
@@ -428,39 +435,47 @@ function parseDirective(state: ParserState, token: LineToken & { type: 'directiv
 
   const bodyLines: string[] = []
   const options: Record<string, string> = {}
-  let startLine = state.pos
+  const startLine = state.pos
+  let seenBody = false
 
   while (hasMore(state)) {
     const l = peek(state)!
-    if (!l || l.trim() === '') {
+    const trimmed = l.trim()
+    const indent = l.length - l.trimStart().length
+
+    if (trimmed === '') {
+      if (!seenBody) {
+        next(state)
+        continue
+      }
+
       next(state)
-      break
+      bodyLines.push('')
+      continue
     }
 
-    // Nested directive
-    if (l.trimStart().startsWith('.. ')) break
-
-    const indent = l.length - l.trimStart().length
-    if (indent === 0 && token.indent === 0) break
+    if (indent <= token.indent) break
 
     next(state)
 
-    // Field option: :name: value
-    const optMatch = l.trim().match(/^:(\w[\w-]*):\s*(.*)$/)
-    if (optMatch) {
+    const bodyText = l.slice(Math.min(indent, token.indent + 3))
+    const optMatch = bodyText.trim().match(/^:(\w[\w-]*):\s*(.*)$/)
+    if (!seenBody && optMatch) {
       options[optMatch[1]!] = optMatch[2] ?? ''
       continue
     }
 
-    bodyLines.push(l)
+    seenBody = true
+    bodyLines.push(bodyText)
   }
 
   const name = token.name.toLowerCase()
+  const rawBody = trimCommonIndent(bodyLines)
 
   // Basic directive types we handle inline
   const bodyChildren: RstBlockNode[] = []
-  if (bodyLines.length > 0) {
-    const text = bodyLines.join('\n')
+  if (rawBody.trim()) {
+    const text = rawBody
     // For code-like directives, treat body as a literal block
     if (['code', 'code-block', 'sourcecode', 'math'].includes(name)) {
       bodyChildren.push({
@@ -486,6 +501,7 @@ function parseDirective(state: ParserState, token: LineToken & { type: 'directiv
     name,
     arguments: token.args ? token.args.split(/\s+/) : [],
     options,
+    rawBody,
     children: bodyChildren,
   }
 }
@@ -613,4 +629,13 @@ function trimCommonIndent(lines: string[]): string {
   if (minIndent === Infinity) minIndent = 0
 
   return lines.map(l => l.slice(minIndent)).join('\n')
+}
+
+function getSectionLevel(state: ParserState, decorationChar: string): number {
+  const existing = state.sectionLevels.get(decorationChar)
+  if (existing) return existing
+
+  const nextLevel = state.sectionLevels.size + 1
+  state.sectionLevels.set(decorationChar, nextLevel)
+  return nextLevel
 }

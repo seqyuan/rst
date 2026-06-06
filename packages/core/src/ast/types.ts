@@ -264,6 +264,8 @@ export interface RstDirective extends RstNode {
   arguments: string[]
   /** Key-value options (parsed from the field list). */
   options: Record<string, string>
+  /** Raw directive body text after indentation normalization. */
+  rawBody?: string
   /** Body content (for directives like code, math, etc.). */
   children: RstBlockNode[]
 }

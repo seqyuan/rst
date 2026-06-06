@@ -8,6 +8,9 @@ description: Command-line interface for rendering RST to HTML, Markdown, or Reac
 The `@seqyuan/rst-cli` package provides a `rst-render` command for
 converting RST files from the terminal.
 
+For general reStructuredText syntax and project-specific template rules, see
+[RST Writing Rules](/docs/rst-rules).
+
 ### Installation
 
 ```bash
@@ -29,8 +32,8 @@ rst-render input.rst --md
 # React component output
 rst-render input.rst --react
 
-# Jinja2 template rendering
-rst-render template.rst.j2 -t -d data.json -v title="My Report"
+# Jinja2 template rendering with project data + wildcard scans
+rst-render report.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png
 ```
 
 ### Options
@@ -41,401 +44,183 @@ rst-render template.rst.j2 -t -d data.json -v title="My Report"
 | `-s, --standalone` | Bundle into self-contained HTML (inline CSS + images) |
 | `--md, --markdown` | Output Markdown instead of HTML |
 | `--react` | Output React component code |
-| `-t, --template` | Render as Jinja2 template, then to HTML |
+| `-t, --template` | Render input as a Jinja2 template before HTML output |
 | `-d, --data <path>` | JSON file with template context data |
 | `-v, --var key=value` | Template variable (repeatable) |
+| `--scan name=glob` | Scan files relative to the template directory and inject them into the template context |
+| `--expand-includes` | Resolve `.. include::` directives relative to the input file before parsing |
 | `-h, --help` | Show help message |
 
-## Example: Bioinformatics Report
+## Example: Project-Level Bioinformatics Report
 
-Below is a realistic RST file modeled after a single-cell RNA-seq analysis
-report. It demonstrates headings, lists, tables, code blocks, admonitions,
-images, links, and CSV tables — all in one document.
+For CLI-based bioinformatics reporting, `input.rst` should usually be a
+template, not a fully expanded report. Put project metadata in a JSON file,
+and use `--scan` to inject wildcard-matched result files.
 
-Save this as `scrna-report.rst`:
+### Directory Layout
 
-```rst
+```text
+report/
+├── assets/
+│   └── seqyuan-logo.png
+├── project.json
+├── report.rst.j2
+└── upload/
+    └── plots/
+        ├── KO_Treated_24h_umap.png
+        ├── KO_Treated_48h_umap.png
+        └── WT_Control_umap.png
+```
+
+### Project Metadata
+
+Save this as `project.json`:
+
+```json
+{
+  "project_name": "单细胞 RNA-seq 分析报告",
+  "project_id": "PRJ-2026-001",
+  "analysis_date": "2026-06-05",
+  "species": "Human (GRCh38)",
+  "reference": "refdata-gex-GRCh38-2024-A",
+  "samples": [
+    {
+      "name": "WT_Control",
+      "fastq_dir": "/data/fastq/WT_Control",
+      "note": "野生型对照组"
+    },
+    {
+      "name": "KO_Treated_24h",
+      "fastq_dir": "/data/fastq/KO_Treated_24h",
+      "note": "敲除处理 24 小时"
+    },
+    {
+      "name": "KO_Treated_48h",
+      "fastq_dir": "/data/fastq/KO_Treated_48h",
+      "note": "敲除处理 48 小时"
+    }
+  ]
+}
+```
+
+### RST Template
+
+Save this as `report.rst.j2`:
+
+```jinja2
 .. container:: report-header
 
    .. image:: assets/seqyuan-logo.png
       :width: 140px
       :alt: SeqYuan Logo
 
-   项目编号 PRJ-2026-001  ·  分析日期 2026-06-05
+   项目编号 {{ project_id }}  ·  分析日期 {{ analysis_date }}
 
-单细胞 RNA-seq 分析报告
+{{ project_name }}
 ========================
 
 项目信息
 --------
 
-:物种: Human (GRCh38)
-:Cell Ranger 版本: 8.0.1
-:测序平台: 10x Genomics 3' scGEX v3.1
-
-----
-
-分析概览
---------
-
-本报告使用 **Cell Ranger 8.0.1** 对 ``3`` 个单细胞样本
-进行了比对和定量分析。
+:物种: {{ species }}
+:参考基因组: {{ reference }}
+:样本数: {{ samples|length }}
 
 样本信息
-~~~~~~~~
+--------
 
 .. list-table::
    :header-rows: 1
-   :widths: 15 20 30 35
+   :widths: 10 20 35 35
 
    * - 编号
      - 样本名称
      - FASTQ 目录
      - 备注
-   * - 1
-     - WT_Control
-     - /data/fastq/WT_Control
-     - 野生型对照组
-   * - 2
-     - KO_Treated_24h
-     - /data/fastq/KO_Treated_24h
-     - 敲除处理 24 小时
-   * - 3
-     - KO_Treated_48h
-     - /data/fastq/KO_Treated_48h
-     - 敲除处理 48 小时
-
-质控结果
---------
-
-WT_Control
-~~~~~~~~~~
-
-.. image:: upload/plots/WT_Control_umap.png
-   :width: 600px
-   :alt: WT_Control UMAP
-
-**关键质控指标：**
-
-- 估计细胞数：**5,234**
-- 平均 reads / 细胞：**45,200**
-- 中位基因数 / 细胞：**1,856**
-- 线粒体比例：**3.2%**
-- 有效 Barcode 比例：**97.8%**
-
-.. note::
-
-   该样本质控指标良好，线粒体比例在正常范围内（&lt; 5%），
-   有效 Barcode 比例高，适合下游分析。
-
-KO_Treated_24h
-~~~~~~~~~~~~~~
-
-.. image:: upload/plots/KO_Treated_24h_umap.png
-   :width: 600px
-   :alt: KO_Treated_24h UMAP
-
-**关键质控指标：**
-
-- 估计细胞数：**4,891**
-- 平均 reads / 细胞：**42,100**
-- 中位基因数 / 细胞：**1,720**
-- 线粒体比例：**4.8%**
-
-KO_Treated_48h
-~~~~~~~~~~~~~~
-
-.. image:: upload/plots/KO_Treated_48h_umap.png
-   :width: 600px
-   :alt: KO_Treated_48h UMAP
-
-**关键质控指标：**
-
-- 估计细胞数：**3,210**
-- 平均 reads / 细胞：**38,500**
-- 中位基因数 / 细胞：**1,490**
-- 线粒体比例：**8.3%**
-
-.. warning::
-
-   该样本线粒体比例偏高（8.3%），可能存在细胞活性下降。
-   建议在后续差异分析中注意此因素。
+{% for sample in samples %}
+   * - {{ loop.index }}
+     - {{ sample.name }}
+     - {{ sample.fastq_dir }}
+     - {{ sample.note }}
+{% endfor %}
 
 UMAP 图集
 ---------
 
-.. container:: image-gallery
+{% for plot in plots %}
+**{{ plot.stem }}**
 
-   .. image:: upload/plots/WT_Control_umap.png
-      :width: 400px
-      :alt: WT_Control
+.. image:: {{ plot.path }}
+   :width: 600px
+   :alt: {{ plot.stem }}
 
-   .. image:: upload/plots/KO_Treated_24h_umap.png
-      :width: 400px
-      :alt: KO_Treated_24h
-
-   .. image:: upload/plots/KO_Treated_48h_umap.png
-      :width: 400px
-      :alt: KO_Treated_48h
-
-质控汇总
---------
-
-.. csv-table:: 所有样本质控指标
-   :header-rows: 1
-   :widths: 20 15 15 15 15
-
-   样本, 细胞数, 平均Reads, 中位基因, 线粒体%
-   WT_Control, 5234, 45200, 1856, 3.2
-   KO_Treated_24h, 4891, 42100, 1720, 4.8
-   KO_Treated_48h, 3210, 38500, 1490, 8.3
-
-分析命令
---------
-
-.. code:: bash
-
-   # Cell Ranger count
-   cellranger count \
-     --id=WT_Control \
-     --transcriptome=/ref/GRCh38 \
-     --fastqs=/data/fastq/WT_Control \
-     --sample=WT_Control \
-     --localcores=16 \
-     --localmem=64
-
-   # Seurat QC (R)
-   Rscript qc.R \
-     --input ./process/cellranger/WT_Control/outs \
-     --sample WT_Control \
-     --mt-pct 20 \
-     --output ./process/qc/WT_Control
-
-差异分析结果
-------------
-
-.. list-table:: KO vs WT 差异基因 (Top 5)
-   :header-rows: 1
-   :widths: 20 20 20 20 20
-
-   * - 基因
-     - log2FC
-     - p-value
-     - p-adj
-     - 方向
-   * - **TP53**
-     - 2.34
-     - 1.2e-15
-     - 3.6e-12
-     - Up
-   * - **CDKN1A**
-     - 1.89
-     - 5.8e-12
-     - 8.7e-09
-     - Up
-   * - *MYC*
-     - -1.56
-     - 2.3e-10
-     - 1.4e-07
-     - Down
-   * - **BAX**
-     - 1.45
-     - 4.1e-09
-     - 1.2e-06
-     - Up
-   * - *CCND1*
-     - -1.32
-     - 8.7e-08
-     - 1.5e-05
-     - Down
+{% endfor %}
 
 结论与建议
 ----------
 
-1. **质控通过**：WT_Control 和 KO_Treated_24h 质控指标良好。
-2. **KO_Treated_48h 注意**：线粒体比例偏高，建议复查。
-3. **差异基因**：TP53 和 CDKN1A 显著上调，提示 DNA 损伤响应通路激活。
-4. **下游分析**：建议进行 GSEA 通路富集分析和细胞亚群注释。
-
-更多信息请参见\ `Cell Ranger 官方文档 <https://support.10xgenomics.com>`_。
-
-----
-
-*报告由 rst-renderer 生成*
+1. 项目级信息来自 `project.json`
+2. UMAP 图由 `--scan` 自动发现
+3. 模板中不需要硬编码 `upload/plots/WT_Control_umap.png` 这类路径
 ```
 
-## Live Preview
-
-Here's what this RST document looks like when rendered with rst-renderer:
-
-<div className="border rounded-xl overflow-hidden my-6">
-  <div className="bg-fd-muted px-4 py-2 border-b text-sm font-medium flex items-center gap-2">
-    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-    Rendered Output
-  </div>
-
-  <div className="p-6 max-h-[800px] overflow-y-auto">
-
-  {/* Report Header: Logo + Meta */}
-  <div className="flex items-center justify-between mb-8 pb-6 border-b-2 border-fd-primary/20">
-    <img src="/assets/seqyuan-logo.png" alt="SeqYuan Logo" className="h-10" />
-    <div className="text-right text-xs text-fd-muted-foreground space-y-0.5">
-      <div>项目编号 <span className="font-semibold text-fd-foreground">PRJ-2026-001</span></div>
-      <div>分析日期 <span className="font-semibold text-fd-foreground">2026-06-05</span></div>
-    </div>
-  </div>
-
-  <h2 id="单细胞-rna-seq-分析报告">单细胞 RNA-seq 分析报告</h2>
-
-  <h3 id="分析概览">分析概览</h3>
-  <p>本报告使用 <strong>Cell Ranger 8.0.1</strong> 对 <code>3</code> 个单细胞样本进行了比对和定量分析。所有样本均为 10x Genomics 3' Single Cell Gene Expression v3.1 平台测序。</p>
-
-  <h4 className="text-base font-semibold mt-4 mb-2">样本信息</h4>
-  <table className="w-full text-sm border mb-6">
-    <thead>
-      <tr className="bg-fd-muted">
-        <th className="border p-2 text-left">编号</th>
-        <th className="border p-2 text-left">样本名称</th>
-        <th className="border p-2 text-left">FASTQ 目录</th>
-        <th className="border p-2 text-left">备注</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td className="border p-2">1</td><td className="border p-2">WT_Control</td><td className="border p-2 text-xs">/data/fastq/WT_Control</td><td className="border p-2">野生型对照组</td></tr>
-      <tr className="bg-fd-muted/50"><td className="border p-2">2</td><td className="border p-2">KO_Treated_24h</td><td className="border p-2 text-xs">/data/fastq/KO_Treated_24h</td><td className="border p-2">敲除处理 24 小时</td></tr>
-      <tr><td className="border p-2">3</td><td className="border p-2">KO_Treated_48h</td><td className="border p-2 text-xs">/data/fastq/KO_Treated_48h</td><td className="border p-2">敲除处理 48 小时</td></tr>
-    </tbody>
-  </table>
-
-  <h3 id="质控结果">质控结果</h3>
-
-  <h4 className="text-base font-semibold mt-4">WT_Control</h4>
-  <div className="border rounded p-3 bg-fd-muted/30 text-center text-sm text-fd-muted-foreground my-2">
-    📷 WT_Control UMAP
-  </div>
-  <p className="font-semibold text-sm mt-2">关键质控指标：</p>
-  <ul className="text-sm">
-    <li>估计细胞数：<strong>5,234</strong></li>
-    <li>平均 reads / 细胞：<strong>45,200</strong></li>
-    <li>中位基因数 / 细胞：<strong>1,856</strong></li>
-    <li>线粒体比例：<strong>3.2%</strong></li>
-    <li>有效 Barcode 比例：<strong>97.8%</strong></li>
-  </ul>
-
-  <div className="border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/30 p-3 rounded-r my-3">
-    <p className="font-semibold text-sm text-blue-700 dark:text-blue-300">Note</p>
-    <p className="text-sm">该样本质控指标良好，线粒体比例在正常范围内（&lt; 5%），有效 Barcode 比例高，适合下游分析。</p>
-  </div>
-
-  <h4 className="text-base font-semibold mt-6">KO_Treated_24h</h4>
-  <div className="border rounded p-3 bg-fd-muted/30 text-center text-sm text-fd-muted-foreground my-2">
-    📷 KO_Treated_24h UMAP
-  </div>
-  <ul className="text-sm">
-    <li>估计细胞数：<strong>4,891</strong></li>
-    <li>平均 reads / 细胞：<strong>42,100</strong></li>
-    <li>中位基因数 / 细胞：<strong>1,720</strong></li>
-    <li>线粒体比例：<strong>4.8%</strong></li>
-  </ul>
-
-  <h4 className="text-base font-semibold mt-6">KO_Treated_48h</h4>
-  <div className="border rounded p-3 bg-fd-muted/30 text-center text-sm text-fd-muted-foreground my-2">
-    📷 KO_Treated_48h UMAP
-  </div>
-  <ul className="text-sm">
-    <li>估计细胞数：<strong>3,210</strong></li>
-    <li>平均 reads / 细胞：<strong>38,500</strong></li>
-    <li>中位基因数 / 细胞：<strong>1,490</strong></li>
-    <li>线粒体比例：<strong>8.3%</strong></li>
-  </ul>
-
-  <div className="border-l-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30 p-3 rounded-r my-3">
-    <p className="font-semibold text-sm text-yellow-700 dark:text-yellow-300">Warning</p>
-    <p className="text-sm">该样本线粒体比例偏高（8.3%），可能存在细胞活性下降。建议在后续差异分析中注意此因素。</p>
-  </div>
-
-  <h3 id="umap-图集" className="mt-6">UMAP 图集</h3>
-  <ImageSlider images={['WT_Control UMAP', 'KO_Treated_24h UMAP', 'KO_Treated_48h UMAP']} />
-
-  <h3 id="质控汇总" className="mt-6">质控汇总</h3>
-  <table className="w-full text-sm border my-3">
-    <thead>
-      <tr className="bg-fd-muted">
-        <th className="border p-2 text-left">样本</th>
-        <th className="border p-2 text-right">细胞数</th>
-        <th className="border p-2 text-right">平均Reads</th>
-        <th className="border p-2 text-right">中位基因</th>
-        <th className="border p-2 text-right">线粒体%</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td className="border p-2">WT_Control</td><td className="border p-2 text-right">5234</td><td className="border p-2 text-right">45200</td><td className="border p-2 text-right">1856</td><td className="border p-2 text-right">3.2</td></tr>
-      <tr className="bg-fd-muted/50"><td className="border p-2">KO_Treated_24h</td><td className="border p-2 text-right">4891</td><td className="border p-2 text-right">42100</td><td className="border p-2 text-right">1720</td><td className="border p-2 text-right">4.8</td></tr>
-      <tr><td className="border p-2">KO_Treated_48h</td><td className="border p-2 text-right">3210</td><td className="border p-2 text-right">38500</td><td className="border p-2 text-right">1490</td><td className="border p-2 text-right">8.3</td></tr>
-    </tbody>
-  </table>
-
-  <h3 id="分析命令" className="mt-6">分析命令</h3>
-  <pre className="bg-fd-muted p-4 rounded text-xs overflow-x-auto my-3"><code>{`# Cell Ranger count
-cellranger count \
-  --id=WT_Control \
-  --transcriptome=/ref/GRCh38 \
-  --fastqs=/data/fastq/WT_Control \
-  --sample=WT_Control \
-  --localcores=16 \
-  --localmem=64
-
-# Seurat QC (R)
-Rscript qc.R \
-  --input ./process/cellranger/WT_Control/outs \
-  --sample WT_Control \
-  --mt-pct 20 \
-  --output ./process/qc/WT_Control`}</code></pre>
-
-  <h3 id="差异分析结果" className="mt-6">差异分析结果</h3>
-  <table className="w-full text-sm border my-3">
-    <thead>
-      <tr className="bg-fd-muted">
-        <th className="border p-2 text-left">基因</th>
-        <th className="border p-2 text-right">log2FC</th>
-        <th className="border p-2 text-right">p-value</th>
-        <th className="border p-2 text-right">p-adj</th>
-        <th className="border p-2 text-center">方向</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr><td className="border p-2"><strong>TP53</strong></td><td className="border p-2 text-right">2.34</td><td className="border p-2 text-right text-xs">1.2e-15</td><td className="border p-2 text-right text-xs">3.6e-12</td><td className="border p-2 text-center"><span className="text-red-500">↑ Up</span></td></tr>
-      <tr className="bg-fd-muted/50"><td className="border p-2"><strong>CDKN1A</strong></td><td className="border p-2 text-right">1.89</td><td className="border p-2 text-right text-xs">5.8e-12</td><td className="border p-2 text-right text-xs">8.7e-09</td><td className="border p-2 text-center"><span className="text-red-500">↑ Up</span></td></tr>
-      <tr><td className="border p-2"><em>MYC</em></td><td className="border p-2 text-right">-1.56</td><td className="border p-2 text-right text-xs">2.3e-10</td><td className="border p-2 text-right text-xs">1.4e-07</td><td className="border p-2 text-center"><span className="text-green-500">↓ Down</span></td></tr>
-      <tr className="bg-fd-muted/50"><td className="border p-2"><strong>BAX</strong></td><td className="border p-2 text-right">1.45</td><td className="border p-2 text-right text-xs">4.1e-09</td><td className="border p-2 text-right text-xs">1.2e-06</td><td className="border p-2 text-center"><span className="text-red-500">↑ Up</span></td></tr>
-      <tr><td className="border p-2"><em>CCND1</em></td><td className="border p-2 text-right">-1.32</td><td className="border p-2 text-right text-xs">8.7e-08</td><td className="border p-2 text-right text-xs">1.5e-05</td><td className="border p-2 text-center"><span className="text-green-500">↓ Down</span></td></tr>
-    </tbody>
-  </table>
-
-  <h3 id="结论与建议" className="mt-6">结论与建议</h3>
-  <ol className="text-sm space-y-1">
-    <li><strong>质控通过</strong>：WT_Control 和 KO_Treated_24h 质控指标良好。</li>
-    <li><strong>KO_Treated_48h 注意</strong>：线粒体比例偏高，建议复查。</li>
-    <li><strong>差异基因</strong>：TP53 和 CDKN1A 显著上调，提示 DNA 损伤响应通路激活。</li>
-    <li><strong>下游分析</strong>：建议进行 GSEA 通路富集分析和细胞亚群注释。</li>
-  </ol>
-  <p className="text-sm mt-3">更多信息请参见 <a href="https://support.10xgenomics.com" target="_blank" rel="noreferrer">Cell Ranger 官方文档</a>。</p>
-
-  <hr className="my-4" />
-  <p className="text-xs text-fd-muted-foreground italic">报告由 rst-renderer 生成</p>
-
-  </div>
-</div>
-
-### Render It Yourself
+### Render It
 
 ```bash
-# Save the RST content above as scrna-report.rst
-rst-render scrna-report.rst -o scrna-report.html
-
-# Or render to Markdown
-rst-render scrna-report.rst --md -o scrna-report.md
+rst-render report.rst.j2 \
+  -t \
+  -d project.json \
+  --scan plots=upload/plots/*_umap.png \
+  --expand-includes \
+  -v analysis_date=2026-06-06 \
+  -o report.html \
+  -s
 ```
+
+`-v/--var` values override the same keys from `project.json`, which is useful
+for build dates, environment tags, or pipeline version numbers.
+
+### Scan Context
+
+`--scan plots=upload/plots/*_umap.png` injects an array named `plots` into the
+template context. The same data is also available at `scans.plots`.
+
+Each matched file has this shape:
+
+```ts
+[
+  {
+    path: 'upload/plots/WT_Control_umap.png',
+    absPath: '/abs/path/to/report/upload/plots/WT_Control_umap.png',
+    name: 'WT_Control_umap.png',
+    stem: 'WT_Control_umap',
+    ext: '.png',
+    dir: 'upload/plots',
+    size: 182734,
+  },
+]
+```
+
+This makes project-level report generation work the same way many
+bioinformatics pipelines do it: template + external variables + wildcard
+scans, instead of hardcoding every output file path into `input.rst`.
+
+### Optional Include Expansion
+
+If you split reusable report fragments into multiple files, enable include expansion:
+
+```rst
+.. include:: shared/qc-summary.rst
+```
+
+CLI example:
+
+```bash
+rst-render report.rst.j2 -t -d project.json --expand-includes -o report.html
+```
+
+This is a lightweight pre-processing step for report reuse. It is not intended
+to reproduce full Sphinx include behavior.
 
 ## Adding Your Company Logo
 
@@ -464,8 +249,8 @@ CSS, images, and scripts inlined. Perfect for sending reports to clients.
 # Generate + bundle in one command
 rst-render report.rst -o report.html --standalone
 
-# Template with data, standalone output
-rst-render report.rst.j2 -t -d data.json -o report.html -s
+# Template with project data + wildcard scans
+rst-render report.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png --expand-includes -o report.html -s
 ```
 
 **What it does:**

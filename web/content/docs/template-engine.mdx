@@ -8,6 +8,9 @@ description: Jinja2-compatible template engine for RST report generation
 The built-in template engine supports Jinja2-compatible syntax for generating
 RST documents from data.
 
+For the underlying reStructuredText writing rules and this project's parser
+support boundaries, see [RST Writing Rules](/docs/rst-rules).
+
 ### Basic Usage
 
 ```ts
@@ -115,8 +118,28 @@ const rst = renderTemplate(template, context)
 const html = renderRst(rst)
 ```
 
+### Report Template Workflow
+
+For project-level reports, the recommended model is:
+
+1. Keep report structure in `report.rst.j2`
+2. Keep project metadata in JSON
+3. Inject ad hoc values with `-v key=value`
+4. Discover repeated result files with `--scan name=glob`
+5. Optionally split shared sections with `.. include::` plus include expansion
+
+That keeps templates reusable and avoids hardcoding generated file paths such as
+`upload/plots/WT_Control_umap.png` directly into the RST source.
+
 ### Annopi Compatibility
 
 The template engine is designed to be compatible with annopi-style RST
 report templates. Both `renderRstTemplate()` (one-step) and
 `renderTemplate()` + `renderRst()` (two-step) workflows are supported.
+
+In practice, the closest matching workflow is:
+
+- RST template as the report skeleton
+- external variables from JSON / CLI flags
+- wildcard result discovery from the filesystem
+- lightweight include reuse for shared fragments

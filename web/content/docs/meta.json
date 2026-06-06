@@ -1,6 +1,7 @@
 {
   "pages": [
     "index",
+    "rst-rules",
     "gallery",
     "html-rendering",
     "react-rendering",

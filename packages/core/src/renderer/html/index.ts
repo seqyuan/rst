@@ -100,6 +100,7 @@ export class HtmlRenderer implements RstRenderer {
     const buf: string[] = []
     const ctx: RenderContext = {
       write: (s: string) => buf.push(s),
+      document,
       footnotes: new Map(),
       citations: new Map(),
       linkTargets: new Map(),

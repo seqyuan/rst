@@ -2,6 +2,7 @@ import type { RstDirective } from '../ast/types'
 import type { RenderContext } from '../renderer/base'
 import { escapeHtml } from '../renderer/base'
 import type { HtmlRenderer } from '../renderer/html/index'
+import { collectHeadingItems, parseToctreeEntries } from '../utils/toc'
 
 /**
  * A directive plugin that hooks into the HTML renderer.
@@ -169,9 +170,49 @@ export const contentsPlugin: DirectivePlugin = {
   name: 'contents',
   directives: ['contents', 'toctree'],
   install(renderer) {
-    // These are typically handled by the document-level TOC extraction
-    renderer.registerDirective('contents', (_directive, ctx) => {
-      ctx.write('<!-- Table of Contents placeholder -->\n')
+    renderer.registerDirective('contents', (directive, ctx) => {
+      const depth = parsePositiveIntOption(directive.options['depth']) ?? Number.POSITIVE_INFINITY
+      const title = directive.arguments.join(' ').trim() || directive.options['caption'] || 'Contents'
+      const headings = collectHeadingItems(ctx.document, depth)
+
+      if (headings.length === 0) {
+        ctx.write('<!-- contents: empty -->\n')
+        return
+      }
+
+      ctx.write('<nav class="rst-contents-card" aria-label="Table of contents">\n')
+      ctx.write(`<p class="rst-contents-title">${escapeHtml(title)}</p>\n`)
+      ctx.write('<ol class="rst-contents-list">\n')
+      for (const item of headings) {
+        const levelAttr = item.level > 1 ? ` data-level="${item.level}"` : ''
+        ctx.write(`<li class="rst-contents-item"${levelAttr}>`)
+        ctx.write(`<a href="${escapeHtml(item.href)}">${escapeHtml(item.title)}</a>`)
+        ctx.write('</li>\n')
+      }
+      ctx.write('</ol>\n')
+      ctx.write('</nav>\n')
+    })
+
+    renderer.registerDirective('toctree', (directive, ctx) => {
+      const title = directive.options['caption'] || directive.arguments.join(' ').trim() || 'Related Pages'
+      const entries = parseToctreeEntries(directive.rawBody ?? '')
+
+      if (entries.length === 0) {
+        ctx.write('<!-- toctree: empty -->\n')
+        return
+      }
+
+      ctx.write('<nav class="rst-toctree-card" aria-label="Document tree">\n')
+      ctx.write(`<p class="rst-toctree-title">${escapeHtml(title)}</p>\n`)
+      ctx.write('<div class="rst-toctree-grid">\n')
+      for (const entry of entries) {
+        ctx.write(`<a class="rst-toctree-link" href="${escapeHtml(entry.href)}">`)
+        ctx.write(`<span class="rst-toctree-link-title">${escapeHtml(entry.title)}</span>`)
+        ctx.write(`<span class="rst-toctree-link-path">${escapeHtml(entry.href)}</span>`)
+        ctx.write('</a>\n')
+      }
+      ctx.write('</div>\n')
+      ctx.write('</nav>\n')
     })
   },
 }
@@ -183,6 +224,43 @@ export const csvTablePlugin: DirectivePlugin = {
   install(renderer) {
     renderer.registerDirective('csv-table', (_directive, ctx) => {
       ctx.write('<!-- csv-table placeholder -->\n')
+    })
+  },
+}
+
+/** List table directive: .. list-table:: */
+export const listTablePlugin: DirectivePlugin = {
+  name: 'list-table',
+  directives: ['list-table'],
+  install(renderer) {
+    renderer.registerDirective('list-table', (directive, ctx) => {
+      const headerRows = parseInt(directive.options['header-rows'] ?? '0', 10)
+      const widths = directive.options['widths']
+        ? directive.options['widths'].split(/[\s,]+/).map(Number)
+        : []
+
+      const rows = parseListTableRows(directive.rawBody ?? '')
+      if (rows.length === 0) {
+        ctx.write('<!-- list-table: empty -->\n')
+        return
+      }
+
+      ctx.write('<table class="list-table">\n')
+
+      if (headerRows > 0) {
+        ctx.write('<thead>\n')
+        for (let i = 0; i < headerRows && i < rows.length; i++) {
+          writeListTableRow(ctx, rows[i]!, 'th', widths)
+        }
+        ctx.write('</thead>\n')
+      }
+
+      ctx.write('<tbody>\n')
+      for (let i = headerRows; i < rows.length; i++) {
+        writeListTableRow(ctx, rows[i]!, 'td', widths)
+      }
+      ctx.write('</tbody>\n')
+      ctx.write('</table>\n')
     })
   },
 }
@@ -249,8 +327,65 @@ export const builtinDirectivePlugins: DirectivePlugin[] = [
   mathPlugin,
   contentsPlugin,
   csvTablePlugin,
+  listTablePlugin,
   replacePlugin,
   rawPlugin,
   containerPlugin,
   includePlugin,
 ]
+
+function writeListTableRow(
+  ctx: RenderContext,
+  row: string[],
+  tag: 'th' | 'td',
+  widths: number[],
+): void {
+  ctx.write('<tr>')
+  for (let i = 0; i < row.length; i++) {
+    const cell = escapeHtml(row[i]!)
+    const style = widths[i] ? ` style="width:${widths[i]}%"` : ''
+    ctx.write(`<${tag}${style}>${cell}</${tag}>`)
+  }
+  ctx.write('</tr>\n')
+}
+
+function parseListTableRows(rawBody: string): string[][] {
+  const lines = rawBody.split(/\r?\n/)
+  const rows: string[][] = []
+  let currentRow: string[] | null = null
+  let currentCellIndex = -1
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    const rowMatch = line.match(/^\s*\*\s+-\s+(.*)$/)
+    if (rowMatch) {
+      if (currentRow) rows.push(currentRow)
+      currentRow = [rowMatch[1]!.trim()]
+      currentCellIndex = 0
+      continue
+    }
+
+    const cellMatch = line.match(/^\s+-\s+(.*)$/)
+    if (cellMatch && currentRow) {
+      currentRow.push(cellMatch[1]!.trim())
+      currentCellIndex = currentRow.length - 1
+      continue
+    }
+
+    if (currentRow && currentCellIndex >= 0) {
+      const continuation = trimmed
+      currentRow[currentCellIndex] = `${currentRow[currentCellIndex]} ${continuation}`.trim()
+    }
+  }
+
+  if (currentRow) rows.push(currentRow)
+  return rows
+}
+
+function parsePositiveIntOption(value: string | undefined): number | null {
+  if (!value) return null
+  const parsed = parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}

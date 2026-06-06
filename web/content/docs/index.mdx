@@ -5,8 +5,9 @@ description: reStructuredText renderer for JavaScript/TypeScript — RST → HTM
 
 ## Overview
 
-**rst-renderer** is a TypeScript library that parses reStructuredText (RST) into a
-unified AST and renders it to multiple output formats.
+**rst-renderer** is a TypeScript library for report-oriented reStructuredText:
+parse RST into a unified AST, render it to HTML / React / Markdown, and
+generate final reports from Jinja2-style templates plus external project data.
 
 ### Quick Start
 
@@ -32,7 +33,7 @@ This is **bold** and *italic* text.
 | Package | Description | npm |
 |---------|-------------|-----|
 | `@seqyuan/rst-renderer` | Core: parser + HTML/React/Markdown renderers + template engine | `pnpm add @seqyuan/rst-renderer` |
-| `@seqyuan/rst-cli` | CLI: `rst-render input.rst -o out.html` | `pnpm add -g @seqyuan/rst-cli` |
+| `@seqyuan/rst-cli` | CLI: template rendering, JSON vars, wildcard scans, standalone HTML | `pnpm add -g @seqyuan/rst-cli` |
 | `@seqyuan/vite-plugin-rst` | Vite: `import html from './doc.rst'` | `pnpm add -D @seqyuan/vite-plugin-rst` |
 
 ### Architecture
@@ -50,7 +51,7 @@ RST Source
 │ Unified AST │  ← 40+ node types (Document, Section, Paragraph, Table...)
 └──────┬──────┘
        │
-       ├──→ HTML Renderer    (11 directive plugins, Shiki, KaTeX)
+       ├──→ HTML Renderer    (report-oriented directive plugins, Shiki, KaTeX)
        ├──→ React Renderer   (custom component mapping)
        └──→ Markdown Renderer (GFM tables, heading offset)
 ```
@@ -63,7 +64,7 @@ RST Source
 | | Inline markup: bold, italic, code, links, references | ✅ |
 | | Builtin parser + rst-compiler adapter | ✅ |
 | HTML | Semantic HTML with CSS classes | ✅ |
-| | 11 directive plugins | ✅ |
+| | Report-oriented directives: image, admonition, csv-table, list-table, contents/toctree, include | ✅ |
 | | Shiki syntax highlighting (auto-detect) | ✅ |
 | | KaTeX math rendering (auto-detect) | ✅ |
 | React | Component tree generation | ✅ |
@@ -72,8 +73,18 @@ RST Source
 | | Heading offset customization | ✅ |
 | Templates | Jinja2-compatible syntax | ✅ |
 | | Nested for/if/else, 12 filters, loop variables | ✅ |
+| CLI Reports | JSON data + `-v` overrides + `--scan name=glob` | ✅ |
+| | Optional `--expand-includes` and standalone HTML bundling | ✅ |
 | CJK | Full Chinese/Japanese/Korean support | ✅ |
 | Types | Full TypeScript definitions (ESM + DTS) | ✅ |
+
+### Design Scope
+
+This project does **not** aim to be another Sphinx.
+
+- It focuses on report generation, application embedding, and pipeline output rendering
+- `contents`, `toctree`, and `include` are intentionally implemented in a lightweight way
+- The recommended workflow for complex reports is: `RST template + external variables + wildcard scans`
 
 ### Usage Scenarios
 
@@ -87,7 +98,8 @@ const rst = fs.readFileSync('README.rst', 'utf-8')
 const html = renderRst(rst)
 ```
 
-**Bioinformatics reports** — Generate HTML reports from Jinja2 RST templates.
+**Bioinformatics reports** — Generate HTML reports from Jinja2 RST templates,
+JSON metadata, and wildcard-discovered result files.
 
 ```ts
 import { renderRstTemplate } from '@seqyuan/rst-renderer'
@@ -97,6 +109,17 @@ const html = renderRstTemplate(template, {
   samples: [{ name: 'CTRL', metrics: { cells: 5000 } }],
   version: '7.2.0',
 })
+```
+
+CLI workflow:
+
+```bash
+rst-render report.rst.j2 \
+  -t \
+  -d project.json \
+  --scan plots=upload/plots/*_umap.png \
+  --expand-includes \
+  -o report.html -s
 ```
 
 **React apps** — Render RST content as React components.

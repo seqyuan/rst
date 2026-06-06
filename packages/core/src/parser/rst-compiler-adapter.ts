@@ -444,6 +444,7 @@ function convertDirective(n: Record<string, unknown>): RstBlockNode {
     name: ((n as { name: string }).name ?? '').toLowerCase(),
     arguments: (n as { arguments: string[] }).arguments ?? [],
     options: (n as { options: Record<string, string> }).options ?? {},
+    rawBody: n.textContent as string,
     children: ((n as { children: unknown[] }).children ?? [])
       .map(convertNode).filter((x): x is RstBlockNode => x != null),
   }

@@ -112,4 +112,31 @@ Summary
     expect(rst).toContain('plot2.png')
     expect(rst).toContain('Cellranger Report')
   })
+
+  it('renders list-table content from template variables', () => {
+    const template = `Report
+======
+
+.. list-table::
+   :header-rows: 1
+
+   * - Sample
+     - Note
+{% for sample in samples %}
+   * - {{ sample.name }}
+     - {{ sample.note }}
+{% endfor %}
+`
+
+    const html = renderRstTemplate(template, {
+      samples: [
+        { name: 'WT_Control', note: 'Wild type' },
+        { name: 'KO_Treated', note: 'Knockout' },
+      ],
+    })
+
+    expect(html).toContain('<table class="list-table">')
+    expect(html).toContain('WT_Control')
+    expect(html).toContain('Knockout')
+  })
 })

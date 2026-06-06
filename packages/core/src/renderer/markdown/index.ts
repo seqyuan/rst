@@ -18,6 +18,7 @@ import type {
   RstTable, RstTableRow, RstTableCell,
   RstBlockNode, RstInlineNode,
 } from '../../ast/types.ts'
+import { collectHeadingItems, parseToctreeEntries } from '../../utils/toc.ts'
 
 // ---------------------------------------------------------------------------
 // MarkdownRenderer
@@ -34,6 +35,12 @@ export interface MarkdownRendererOptions {
 
 export class MarkdownRenderer {
   private opts: Required<MarkdownRendererOptions>
+  private currentDocument: RstDocument = {
+    type: 'Document',
+    source: { startLine: 0, endLine: 0 },
+    text: '',
+    children: [],
+  }
 
   constructor(options: MarkdownRendererOptions = {}) {
     this.opts = {
@@ -44,6 +51,7 @@ export class MarkdownRenderer {
   }
 
   render(document: RstDocument): string {
+    this.currentDocument = document
     const buf: string[] = []
     for (const child of document.children) {
       this.renderBlock(child, buf)
@@ -251,8 +259,11 @@ export class MarkdownRenderer {
       }
 
       case 'contents':
+        this.renderContentsDirective(node, buf)
+        return
+
       case 'toctree':
-        buf.push('<!-- TOC -->\n\n')
+        this.renderToctreeDirective(node, buf)
         return
 
       case 'raw': {
@@ -338,6 +349,34 @@ export class MarkdownRenderer {
     return nodes.map(n => this.renderInline(n)).join('')
   }
 
+  private renderContentsDirective(node: RstDirective, buf: string[]): void {
+    const depth = this.parsePositiveInt(node.options['depth']) ?? Number.POSITIVE_INFINITY
+    const title = node.arguments.join(' ').trim() || node.options['caption'] || 'Contents'
+    const headings = collectHeadingItems(this.currentDocument, depth)
+
+    if (headings.length === 0) return
+
+    buf.push(`**${this.escapeMd(title)}**\n\n`)
+    for (const item of headings) {
+      const indent = '  '.repeat(Math.max(0, item.level - 1))
+      buf.push(`${indent}- [${this.escapeMd(item.title)}](${item.href})\n`)
+    }
+    buf.push('\n')
+  }
+
+  private renderToctreeDirective(node: RstDirective, buf: string[]): void {
+    const title = node.options['caption'] || node.arguments.join(' ').trim() || 'Related Pages'
+    const entries = parseToctreeEntries(node.rawBody ?? '')
+
+    if (entries.length === 0) return
+
+    buf.push(`**${this.escapeMd(title)}**\n\n`)
+    for (const entry of entries) {
+      buf.push(`- [${this.escapeMd(entry.title)}](${entry.href})\n`)
+    }
+    buf.push('\n')
+  }
+
   private renderInline(node: RstInlineNode): string {
     switch (node.type) {
       case 'Text': return this.escapeMd(node.text)
@@ -372,5 +411,11 @@ export class MarkdownRenderer {
       .replace(/!/g, '\\!')
       .replace(/\|/g, '\\|')
       .replace(/~/g, '\\~')
+  }
+
+  private parsePositiveInt(value: string | undefined): number | null {
+    if (!value) return null
+    const parsed = parseInt(value, 10)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
   }
 }
