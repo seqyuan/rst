@@ -29,9 +29,6 @@ jobs:
         with:
           install: "true"
 
-      - name: Upgrade npm
-        run: npm install -g npm@latest
-
       - name: Read Package Version
         id: package
         run: echo "version=$(jq -r .version packages/core/package.json)" >> "$GITHUB_OUTPUT"
