@@ -15,5 +15,9 @@ export const docs = defineDocs({
 })
 
 export default defineConfig({
-  mdxOptions: {},
+  mdxOptions: {
+    rehypeCodeOptions: {
+      langs: ['jinja'],
+    },
+  },
 })

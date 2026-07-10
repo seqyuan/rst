@@ -349,7 +349,7 @@ RST comments start with `..`:
 
 Template comments are different and use Jinja2 syntax:
 
-```jinja2
+```jinja
 {# this is a template comment #}
 ```
 
@@ -359,7 +359,7 @@ This section is project-specific. It is not standard reStructuredText.
 
 ### Variables
 
-```jinja2
+```jinja
 {{ project_name }}
 {{ sample.name }}
 {{ items["key"] }}
@@ -367,7 +367,7 @@ This section is project-specific. It is not standard reStructuredText.
 
 ### Loops
 
-```jinja2
+```jinja
 {% for sample in samples %}
 - {{ loop.index }}. {{ sample.name }}
 {% endfor %}
@@ -385,7 +385,7 @@ Supported loop variables:
 
 ### Conditionals
 
-```jinja2
+```jinja
 {% if sample.qc_pass %}
 PASS
 {% else %}
@@ -399,7 +399,7 @@ Summary section
 
 ### Filters
 
-```jinja2
+```jinja
 {{ name|default("N/A") }}
 {{ items|length }}
 {{ text|upper }}
@@ -425,7 +425,7 @@ That means the generated text still has to be valid RST after template substitut
 
 For example, this is good:
 
-```jinja2
+```jinja
 {% for sample in samples %}
 {{ sample.name }}
 {{ '~' * sample.name.length }}
