@@ -1,0 +1,130 @@
+---
+title: Markdown Rendering
+description: Convert RST to GitHub-Flavored Markdown for docs pipelines and static site generators
+---
+
+## Markdown Renderer
+
+The Markdown renderer converts parsed RST documents into
+[GitHub-Flavored Markdown](https://github.github.com/gfm/) (GFM).
+Use it when you need RST authoring but Markdown output — for example,
+feeding content into Fumadocs, VitePress, Hugo, or a CMS that accepts `.md`.
+
+For reStructuredText syntax boundaries, see
+[RST Writing Rules](/docs/rst-rules).
+
+### Basic Usage
+
+```ts
+import { createBuiltinParser, MarkdownRenderer } from '@seqyuan/rst-renderer'
+
+const parser = createBuiltinParser()
+const document = parser.parse({ input: rstSource }).document
+
+const md = new MarkdownRenderer({ headingOffset: 1 }).render(document)
+```
+
+Or use the subpath export:
+
+```ts
+import { MarkdownRenderer } from '@seqyuan/rst-renderer/markdown'
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `headingOffset` | `number` | `0` | Shift all heading levels. `1` turns RST `=` headings into `##` in Markdown |
+| `gfmTables` | `boolean` | `true` | Emit GFM pipe tables when possible |
+| `wrapWidth` | `number` | `0` | Soft-wrap paragraph text (`0` = no wrap) |
+
+`headingOffset: 1` is the recommended default when RST is embedded inside
+an existing Markdown document hierarchy (docs sites, README sections, etc.).
+
+### What Gets Converted
+
+| RST construct | Markdown output |
+|---------------|-----------------|
+| Sections (`=`, `-`, `~` underlines) | `#`–`######` headings |
+| **bold**, *italic*, ``code`` | `**bold**`, `*italic*`, `` `code` `` |
+| Bullet / numbered lists | `- item` / `1. item` |
+| Literal blocks | Fenced code blocks |
+| `.. code:: python` | ` ```python ` fences |
+| `.. image::` | `![alt](path)` |
+| `.. note::` / `.. warning::` | GFM blockquotes (`> **Note:**`) |
+| `.. list-table::` | Best-effort GFM table |
+| `.. contents::` | Anchor link list |
+| `.. toctree::` | Link list with caption |
+| `----` transitions | `---` horizontal rules |
+
+Directives without a dedicated mapping fall back to rendering their body content.
+
+### CLI Output
+
+```bash
+rst-render input.rst --md -o output.md
+```
+
+The CLI always uses `headingOffset: 1` so top-level RST titles become
+second-level Markdown headings — consistent with docs-site conventions.
+
+### Vite Integration
+
+```ts
+import md from './documentation.rst?md'
+// md = Markdown string (headingOffset: 1)
+```
+
+See [Vite Plugin](/docs/vite-plugin) for all import formats.
+
+### Example
+
+**Input RST:**
+
+```rst
+Report Summary
+==============
+
+This release includes **QC metrics** and *cluster plots*.
+
+Metrics
+-------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Sample
+     - Cells
+   * - WT_Control
+     - 5120
+
+.. note::
+
+   All metrics passed the default thresholds.
+```
+
+**Output Markdown (with `headingOffset: 1`):**
+
+```md
+## Report Summary
+
+This release includes **QC metrics** and *cluster plots*.
+
+### Metrics
+
+| Sample | Cells |
+| --- | --- |
+| WT\_Control | 5120 |
+
+> **Note:** All metrics passed the default thresholds.
+```
+
+### When to Use Markdown vs HTML
+
+| Scenario | Renderer |
+|----------|----------|
+| Client-facing HTML report with styling | [HTML Rendering](/docs/html-rendering) |
+| React app embedding | [React Rendering](/docs/react-rendering) |
+| Import into Fumadocs / VitePress / Hugo | **Markdown** |
+| GitHub README or issue content | **Markdown** |
+| Jinja2 template → final report | [Template Engine](/docs/template-engine) → HTML |

@@ -186,6 +186,26 @@ describe('HtmlRenderer', () => {
     expect(html).toContain('KO_Treated')
   })
 
+  it('renders csv-table directives with inline CSV body', () => {
+    const input = `Doc
+===
+
+.. csv-table::
+   :header-rows: 1
+
+   Sample,Note
+   WT_Control,Wild type
+   KO_Treated,Knockout`
+
+    const html = renderRst(input)
+    expect(html).toContain('<table class="csv-table">')
+    expect(html).toContain('<th>Sample</th>')
+    expect(html).toContain('<th>Note</th>')
+    expect(html).toContain('<td>Wild type</td>')
+    expect(html).toContain('KO_Treated')
+    expect(html).not.toContain('csv-table placeholder')
+  })
+
   it('renders contents directives as a heading TOC card', () => {
     const input = `Doc
 ===

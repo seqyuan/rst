@@ -64,7 +64,6 @@ export {
   includePlugin,
   builtinDirectivePlugins,
 } from './plugins/directives'
-export { csvTablePlugin as csvTableDirectivePlugin } from './plugins/csv-table'
 
 // ---------------------------------------------------------------------------
 // Convenience function: one-shot parse + render

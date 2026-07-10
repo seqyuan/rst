@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.2 - 2026-07-10
+
+### Added
+
+- Fumadocs pages: Markdown Rendering, Vite Plugin, Quick Start, and Bioinformatics Report Tutorial
+- `csv-table` inline CSV HTML rendering with escaped cell content and column widths
+- Shiki singleton highlighter with lazy language loading for `.. code::` directives
+- Core test coverage for inline `csv-table` rendering
+- Separate CLI test step in CI workflow
+
+### Changed
+
+- `csv-table` plugin now renders real HTML tables instead of placeholders
+- Consolidated `csv-table` directive registration through `directives.ts`
+- Removed unused `csvTableDirectivePlugin` export from core package
+- Docs cross-links updated across index, CLI, gallery, and React rendering pages
+
+### Notes
+
+- npm packages `@seqyuan/rst-renderer`, `@seqyuan/rst-cli`, and `@seqyuan/vite-plugin-rst` are version-aligned at 0.1.2.
+
 ## 0.1.1 - 2026-06-06
 
 ### Added

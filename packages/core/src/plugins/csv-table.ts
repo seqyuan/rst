@@ -2,10 +2,10 @@
  * CSV Table directive plugin.
  * Parses .. csv-table:: directives with :file: or inline CSV content.
  */
-import type { DirectivePlugin } from './directives.ts'
-import type { RstDirective } from '../ast/types.ts'
-import type { HtmlRenderer } from '../renderer/html/index.ts'
-import type { RenderContext } from '../renderer/base.ts'
+import type { DirectivePlugin } from './directives'
+import type { RstDirective } from '../ast/types'
+import type { HtmlRenderer } from '../renderer/html/index'
+import { escapeHtml, type RenderContext } from '../renderer/base'
 
 export const csvTablePlugin: DirectivePlugin = {
   name: 'csv-table',
@@ -19,18 +19,14 @@ export const csvTablePlugin: DirectivePlugin = {
         : []
       const file = directive.options['file'] ?? ''
 
-      // Get CSV content from either :file: or body
-      let csvText = ''
       if (file) {
-        // File references are resolved externally — render placeholder
-        ctx.write(`<!-- csv-table: file="${file}" -->\n`)
-        ctx.write(`<table class="csv-table" data-file="${file}">\n`)
+        ctx.write(`<!-- csv-table: file="${escapeHtml(file)}" -->\n`)
+        ctx.write(`<table class="csv-table" data-file="${escapeHtml(file)}">\n`)
         if (headerRows > 0) ctx.write('<thead><tr><th>(loading...)</th></tr></thead>\n')
         ctx.write('</table>\n')
         return
       }
 
-      // Inline CSV from directive body
       const bodyText = (directive.rawBody ?? directive.children
         .map(c => c.text)
         .join('\n'))
@@ -49,37 +45,37 @@ export const csvTablePlugin: DirectivePlugin = {
 
       ctx.write('<table class="csv-table">\n')
 
-      // Header rows
       if (headerRows > 0) {
         ctx.write('<thead>\n')
         for (let i = 0; i < headerRows && i < rows.length; i++) {
-          const row = rows[i]!
-          ctx.write('<tr>')
-          for (const cell of row) {
-            ctx.write(`<th>${cell}</th>`)
-          }
-          ctx.write('</tr>\n')
+          writeCsvTableRow(ctx, rows[i]!, 'th', widths)
         }
         ctx.write('</thead>\n')
       }
 
-      // Body rows
       ctx.write('<tbody>\n')
-      const startRow = headerRows
-      for (let i = startRow; i < rows.length; i++) {
-        const row = rows[i]!
-        ctx.write('<tr>')
-        for (let j = 0; j < row.length; j++) {
-          const cell = row[j]!
-          const style = widths[j] ? ` style="width:${widths[j]}%"` : ''
-          ctx.write(`<td${style}>${cell}</td>`)
-        }
-        ctx.write('</tr>\n')
+      for (let i = headerRows; i < rows.length; i++) {
+        writeCsvTableRow(ctx, rows[i]!, 'td', widths)
       }
       ctx.write('</tbody>\n')
       ctx.write('</table>\n')
     })
   },
+}
+
+function writeCsvTableRow(
+  ctx: RenderContext,
+  row: string[],
+  tag: 'th' | 'td',
+  widths: number[],
+): void {
+  ctx.write('<tr>')
+  for (let i = 0; i < row.length; i++) {
+    const cell = escapeHtml(row[i]!)
+    const style = widths[i] ? ` style="width:${widths[i]}%"` : ''
+    ctx.write(`<${tag}${style}>${cell}</${tag}>`)
+  }
+  ctx.write('</tr>\n')
 }
 
 /**
@@ -105,7 +101,7 @@ function parseCsv(text: string): string[][] {
       if (inQuotes) {
         if (ch === '"' && next === '"') {
           current += '"'
-          i++ // skip next
+          i++
         } else if (ch === '"') {
           inQuotes = false
         } else {

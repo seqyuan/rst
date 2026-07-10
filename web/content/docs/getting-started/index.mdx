@@ -1,0 +1,104 @@
+---
+title: Quick Start
+description: Install rst-renderer and render your first RST document in five minutes
+---
+
+## Quick Start
+
+This guide walks through the fastest path from zero to rendered HTML.
+For a full bioinformatics pipeline report, continue to
+[Bioinformatics Report Tutorial](/docs/getting-started/bioinformatics-report).
+
+### 1. Install
+
+Pick the package that matches your workflow:
+
+```bash
+# Library (HTML / React / Markdown)
+pnpm add @seqyuan/rst-renderer
+
+# CLI (terminal rendering + templates)
+pnpm add -g @seqyuan/rst-cli
+
+# Vite plugin (import .rst in frontend projects)
+pnpm add -D @seqyuan/vite-plugin-rst
+pnpm add @seqyuan/rst-renderer
+```
+
+### 2. Write RST
+
+Create `hello.rst`:
+
+```rst
+Hello rst-renderer
+==================
+
+This is **bold** and *italic* text.
+
+Features
+--------
+
+- Parse reStructuredText into a unified AST
+- Render to HTML, React, or Markdown
+- Jinja2-compatible templates for reports
+```
+
+### 3. Render to HTML
+
+**TypeScript (one-liner):**
+
+```ts
+import { renderRst } from '@seqyuan/rst-renderer'
+import fs from 'node:fs'
+
+const rst = fs.readFileSync('hello.rst', 'utf-8')
+const html = renderRst(rst)
+console.log(html)
+```
+
+**CLI:**
+
+```bash
+rst-render hello.rst -o hello.html
+```
+
+Open `hello.html` in a browser to see the result.
+
+### 4. Choose Your Output Format
+
+| Goal | Approach | Docs |
+|------|----------|------|
+| Styled HTML report | `renderRst()` or CLI | [HTML Rendering](/docs/html-rendering) |
+| React component tree | `ReactRenderer` | [React Rendering](/docs/react-rendering) |
+| Markdown for another SSG | `MarkdownRenderer` or `--md` | [Markdown Rendering](/docs/markdown-rendering) |
+| Vite `import` | `@seqyuan/vite-plugin-rst` | [Vite Plugin](/docs/vite-plugin) |
+| Data-driven report | Jinja2 template + JSON | [Template Engine](/docs/template-engine) |
+
+### 5. Template-Driven Reports (Preview)
+
+For reports that change per project, keep structure in a `.rst.j2` template
+and inject data at render time:
+
+```bash
+rst-render report.rst.j2 -t -d project.json -o report.html
+```
+
+The CLI also supports wildcard file discovery:
+
+```bash
+rst-render report.rst.j2 -t -d project.json \
+  --scan plots=upload/plots/*_umap.png \
+  -o report.html -s
+```
+
+`-s` produces a **standalone** HTML file with CSS and images inlined —
+ready to email to a client.
+
+See the [Bioinformatics Report Tutorial](/docs/getting-started/bioinformatics-report)
+for a complete end-to-end example with Chinese content, QC tables, and plot galleries.
+
+### Next Steps
+
+- [RST Writing Rules](/docs/rst-rules) — syntax supported by this project
+- [Gallery](/docs/gallery) — live rendering previews
+- [CLI Tool](/docs/cli) — all flags and options

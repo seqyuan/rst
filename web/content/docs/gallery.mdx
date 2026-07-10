@@ -177,3 +177,46 @@ or check the `GitHub repository <https://github.com/seqyuan/rst>`_.
     <li>线粒体比例：&lt; 5%</li>
   </ul>
 </div>
+
+### Bioinformatics Report
+
+See the [Bioinformatics Report Tutorial](/docs/getting-started/bioinformatics-report)
+for a full end-to-end example with Jinja2 templates, JSON metadata, wildcard
+plot scans, and standalone HTML delivery.
+
+```rst
+单细胞分析报告
+==============
+
+项目编号 PRJ-2026-001  ·  分析日期 2026-06-05
+
+样本质控
+--------
+
+.. list-table::
+   :header-rows: 1
+
+   * - 样本
+     - Cells
+   * - WT_Control
+     - 5120
+   * - KO_Treated_24h
+     - 4891
+```
+
+**Renders as:**
+
+<div className="border rounded-xl p-6 my-4 bg-fd-card">
+  <h2 id="单细胞分析报告">单细胞分析报告</h2>
+  <p>项目编号 PRJ-2026-001  ·  分析日期 2026-06-05</p>
+  <h3 id="样本质控">样本质控</h3>
+  <table>
+    <thead>
+      <tr><th>样本</th><th>Cells</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>WT_Control</td><td>5120</td></tr>
+      <tr><td>KO_Treated_24h</td><td>4891</td></tr>
+    </tbody>
+  </table>
+</div>

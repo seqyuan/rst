@@ -1,11 +1,14 @@
 {
   "pages": [
     "index",
-    "rst-rules",
-    "gallery",
-    "html-rendering",
-    "react-rendering",
+    "getting-started",
+    "cli",
     "template-engine",
-    "cli"
+    "html-rendering",
+    "markdown-rendering",
+    "react-rendering",
+    "vite-plugin",
+    "rst-rules",
+    "gallery"
   ]
 }

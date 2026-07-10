@@ -88,7 +88,9 @@ This project does **not** aim to be another Sphinx.
 
 ### Usage Scenarios
 
-**Documentation sites** — Render RST documentation to HTML at build time.
+**New to rst-renderer?** Start with the [Quick Start](/docs/getting-started) guide.
+
+**Documentation sites** — Render RST documentation to HTML at build time (see also [Vite Plugin](/docs/vite-plugin)).
 
 ```ts
 import { renderRst } from '@seqyuan/rst-renderer'
@@ -98,20 +100,8 @@ const rst = fs.readFileSync('README.rst', 'utf-8')
 const html = renderRst(rst)
 ```
 
-**Bioinformatics reports** — Generate HTML reports from Jinja2 RST templates,
-JSON metadata, and wildcard-discovered result files.
-
-```ts
-import { renderRstTemplate } from '@seqyuan/rst-renderer'
-
-const template = fs.readFileSync('report.rst.j2', 'utf-8')
-const html = renderRstTemplate(template, {
-  samples: [{ name: 'CTRL', metrics: { cells: 5000 } }],
-  version: '7.2.0',
-})
-```
-
-CLI workflow:
+**Bioinformatics reports** — See the full [Bioinformatics Report Tutorial](/docs/getting-started/bioinformatics-report).
+Quick CLI workflow:
 
 ```bash
 rst-render report.rst.j2 \
@@ -139,13 +129,4 @@ const renderer = new ReactRenderer({
 })
 ```
 
-**Vite projects** — Import .rst files directly.
-
-```ts
-// vite.config.ts
-import rst from '@seqyuan/vite-plugin-rst'
-export default { plugins: [rst()] }
-
-// your-component.tsx
-import { html } from './doc.rst'
-```
+**Vite projects** — Import .rst files directly. See [Vite Plugin](/docs/vite-plugin).

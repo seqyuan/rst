@@ -69,18 +69,5 @@ All available component overrides:
 
 ### Vite Integration
 
-```ts
-// vite.config.ts
-import rst from '@seqyuan/vite-plugin-rst'
-
-export default { plugins: [rst()] }
-```
-
-```tsx
-// In your component
-import { html } from './documentation.rst'
-// html = rendered HTML string
-
-// Or as React component:
-// import RstPage from './documentation.rst?react'
-```
+For importing `.rst` files in Vite projects (`?html`, `?md`, `?react`, `?meta`),
+see the dedicated [Vite Plugin](/docs/vite-plugin) guide.

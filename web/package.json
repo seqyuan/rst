@@ -1,7 +1,7 @@
 {
   "name": "rst-renderer-docs",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "build": "next build",

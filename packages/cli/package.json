@@ -1,9 +1,12 @@
 {
   "name": "@seqyuan/rst-cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI tool for rendering reStructuredText to HTML/Markdown",
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "rst-render": "./dist/cli.js"
   },

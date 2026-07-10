@@ -1,0 +1,165 @@
+---
+title: Vite Plugin
+description: Import .rst files in Vite projects as HTML, Markdown, React components, or metadata
+---
+
+## Vite Plugin
+
+`@seqyuan/vite-plugin-rst` lets you `import` `.rst` files the same way you
+import `.md` or `.svg` — Vite transforms them at build time using
+`@seqyuan/rst-renderer`.
+
+### Installation
+
+```bash
+pnpm add -D @seqyuan/vite-plugin-rst
+pnpm add @seqyuan/rst-renderer
+```
+
+`@seqyuan/rst-renderer` is a peer dependency resolved at transform time.
+
+### Setup
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+import rst from '@seqyuan/vite-plugin-rst'
+
+export default defineConfig({
+  plugins: [rst()],
+})
+```
+
+### Import Formats
+
+| Import | Output |
+|--------|--------|
+| `import { html } from './doc.rst'` | HTML string (named + default export) |
+| `import html from './doc.rst?html'` | HTML string (explicit query) |
+| `import md from './doc.rst?md'` | Markdown string (`headingOffset: 1`) |
+| `import meta from './doc.rst?meta'` | `{ title, headings[] }` metadata |
+| `import RstPage from './doc.rst?react'` | React component (default export) |
+
+### HTML Import
+
+```tsx
+import { html } from './changelog.rst'
+
+function ChangelogPanel() {
+  return <div dangerouslySetInnerHTML={{ __html: html }} />
+}
+```
+
+### Markdown Import
+
+```tsx
+import md from './guide.rst?md'
+import { marked } from 'marked' // or your preferred MD renderer
+
+function GuidePanel() {
+  return <div dangerouslySetInnerHTML={{ __html: marked.parse(md) }} />
+}
+```
+
+### React Component Import
+
+The `?react` query generates a self-contained module:
+
+```tsx
+import RstPage from './documentation.rst?react'
+
+function App() {
+  return (
+    <main>
+      <RstPage />
+    </main>
+  )
+}
+```
+
+Generated module structure:
+
+```tsx
+import { ReactRenderer } from '@seqyuan/rst-renderer/react'
+
+const document = { /* parsed AST */ }
+const renderer = new ReactRenderer()
+
+export default function RstPage() {
+  return renderer.render(document)
+}
+```
+
+Override components by importing the AST and using `ReactRenderer` directly —
+see [React Rendering](/docs/react-rendering).
+
+### Metadata Import
+
+```ts
+import { meta } from './doc.rst?meta'
+
+console.log(meta.title)     // first RST heading text
+console.log(meta.headings)  // all heading texts in document order
+```
+
+Useful for building sidebars, breadcrumbs, or page titles without parsing RST
+twice in application code.
+
+### Plugin Options
+
+```ts
+export default defineConfig({
+  plugins: [
+    rst({
+      defaultFormat: 'html', // 'html' | 'md' | 'react'
+    }),
+  ],
+})
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `defaultFormat` | `'html' \| 'md' \| 'react'` | `'html'` | Output when no `?query` param is present |
+
+### Hot Module Replacement
+
+When any `.rst` file changes during `vite dev`, the plugin triggers a
+**full page reload**. RST parsing runs at transform time, so partial HMR
+for individual nodes is not supported yet.
+
+### Full Example: Docs Page Component
+
+```tsx
+// src/pages/ReleaseNotes.tsx
+import { html } from '../../content/release-notes.rst'
+import { meta } from '../../content/release-notes.rst?meta'
+
+export function ReleaseNotes() {
+  return (
+    <article>
+      <h1>{meta.title}</h1>
+      <nav>
+        <ul>
+          {meta.headings.slice(1).map((h) => (
+            <li key={h}>{h}</li>
+          ))}
+        </ul>
+      </nav>
+      <div className="rst-content" dangerouslySetInnerHTML={{ __html: html }} />
+    </article>
+  )
+}
+```
+
+### Comparison with React Renderer
+
+| Approach | Best for |
+|----------|----------|
+| `?react` import | Drop-in page component, zero setup |
+| `ReactRenderer` + custom `components` | Design-system integration, styled primitives |
+| `?html` import | Quick preview, legacy HTML/CSS styling |
+| `?md` import | Piping RST content into an existing Markdown stack |
+
+For programmatic rendering outside Vite, use
+[HTML](/docs/html-rendering), [React](/docs/react-rendering), or
+[Markdown](/docs/markdown-rendering) renderers directly.

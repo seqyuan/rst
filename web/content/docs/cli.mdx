@@ -53,6 +53,10 @@ rst-render report.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png
 
 ## Example: Project-Level Bioinformatics Report
 
+For a complete end-to-end walkthrough (directory layout, shared QC fragments,
+pipeline integration), see
+[Bioinformatics Report Tutorial](/docs/getting-started/bioinformatics-report).
+
 For CLI-based bioinformatics reporting, `input.rst` should usually be a
 template, not a fully expanded report. Put project metadata in a JSON file,
 and use `--scan` to inject wildcard-matched result files.

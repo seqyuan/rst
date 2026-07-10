@@ -3,6 +3,8 @@ import type { RenderContext } from '../renderer/base'
 import { escapeHtml } from '../renderer/base'
 import type { HtmlRenderer } from '../renderer/html/index'
 import { collectHeadingItems, parseToctreeEntries } from '../utils/toc'
+import type { BundledLanguage, Highlighter } from 'shiki'
+import { csvTablePlugin } from './csv-table'
 
 /**
  * A directive plugin that hooks into the HTML renderer.
@@ -76,27 +78,73 @@ export const admonitionPlugin: DirectivePlugin = {
   },
 }
 
+const SHIKI_COMMON_LANGS = [
+  'javascript', 'typescript', 'python', 'bash', 'shell', 'json', 'yaml',
+  'markdown', 'r', 'sql', 'go', 'rust', 'html', 'css', 'text',
+] as const
+
+let shikiHighlighter: Highlighter | null = null
+let shikiInitStarted = false
+const shikiLoadedLangs = new Set<string>()
+const shikiPendingLangs = new Set<string>()
+
+function initShiki(): void {
+  if (shikiInitStarted) return
+  shikiInitStarted = true
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const shiki = require('shiki') as typeof import('shiki')
+    if (typeof shiki.getSingletonHighlighter !== 'function') return
+
+    void shiki.getSingletonHighlighter({
+      themes: ['github-light'],
+      langs: [...SHIKI_COMMON_LANGS],
+    }).then((highlighter) => {
+      shikiHighlighter = highlighter
+      for (const lang of SHIKI_COMMON_LANGS) {
+        shikiLoadedLangs.add(lang)
+      }
+    }).catch(() => { /* fallback to plain pre/code */ })
+  } catch { /* Shiki not installed */ }
+}
+
+function asShikiLang(lang: string): BundledLanguage {
+  return lang as BundledLanguage
+}
+
+function shikiHighlight(code: string, lang: string): string {
+  if (!shikiHighlighter || !lang) return ''
+
+  const normalizedLang = lang.toLowerCase()
+  if (!shikiLoadedLangs.has(normalizedLang)) {
+    if (!shikiPendingLangs.has(normalizedLang)) {
+      shikiPendingLangs.add(normalizedLang)
+      void shikiHighlighter.loadLanguage(asShikiLang(normalizedLang))
+        .then(() => {
+          shikiLoadedLangs.add(normalizedLang)
+          shikiPendingLangs.delete(normalizedLang)
+        })
+        .catch(() => {
+          shikiPendingLangs.delete(normalizedLang)
+        })
+    }
+    return ''
+  }
+
+  try {
+    return shikiHighlighter.codeToHtml(code, { lang: asShikiLang(normalizedLang), theme: 'github-light' })
+  } catch {
+    return ''
+  }
+}
+
 /** Code directive with optional Shiki syntax highlighting. */
 export const codePlugin: DirectivePlugin = {
   name: 'code',
   directives: ['code', 'code-block', 'sourcecode', 'highlight'],
   install(renderer) {
-    let shikiHighlight: ((code: string, lang: string) => string) | null = null
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const shiki = require('shiki')
-      if (shiki && typeof shiki.codeToHtml === 'function') {
-        shikiHighlight = (code, lang) => {
-          try {
-            // Shiki codeToHtml: may be sync or async depending on version
-            const result = (shiki as any).codeToHtml(code, { lang, theme: 'github-light' })
-            return typeof result === 'string' ? result : ''
-          } catch {
-            return ''
-          }
-        }
-      }
-    } catch { /* Shiki not installed, use plain pre/code */ }
+    initShiki()
 
     renderer.registerDirective('code', (directive, ctx, renderChildren) => {
       const language = directive.arguments[0] ?? directive.options['language'] ?? ''
@@ -108,7 +156,7 @@ export const codePlugin: DirectivePlugin = {
       const code = codeParts.join('')
 
       try {
-        if (shikiHighlight && language && code.trim()) {
+        if (language && code.trim()) {
           const html = shikiHighlight(code, language)
           if (html) {
             ctx.write(html + '\n')
@@ -217,16 +265,7 @@ export const contentsPlugin: DirectivePlugin = {
   },
 }
 
-/** CSV table directive: .. csv-table:: */
-export const csvTablePlugin: DirectivePlugin = {
-  name: 'csv-table',
-  directives: ['csv-table'],
-  install(renderer) {
-    renderer.registerDirective('csv-table', (_directive, ctx) => {
-      ctx.write('<!-- csv-table placeholder -->\n')
-    })
-  },
-}
+export { csvTablePlugin }
 
 /** List table directive: .. list-table:: */
 export const listTablePlugin: DirectivePlugin = {

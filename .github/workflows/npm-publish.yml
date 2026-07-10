@@ -1,0 +1,95 @@
+name: npm-publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm-publish
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          install: "true"
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Read Package Version
+        id: package
+        run: echo "version=$(jq -r .version packages/core/package.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Tag Matches Version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          core_version=$(jq -r .version packages/core/package.json)
+          cli_version=$(jq -r .version packages/cli/package.json)
+          vite_version=$(jq -r .version packages/vite-plugin/package.json)
+          if [ "$tag_version" != "$core_version" ] || [ "$tag_version" != "$cli_version" ] || [ "$tag_version" != "$vite_version" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match aligned package versions" >&2
+            echo "core=${core_version} cli=${cli_version} vite=${vite_version}" >&2
+            exit 1
+          fi
+
+      - name: Verify Tag Commit Is On main
+        run: |
+          git fetch origin main --force
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "tag ${GITHUB_REF_NAME} points to a commit outside origin/main" >&2
+            exit 1
+          fi
+
+      - name: Check npm token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "missing environment secret NPM_TOKEN" >&2
+            exit 1
+          fi
+
+      - name: Build
+        run: corepack pnpm --filter "./packages/*" -r build
+
+      - name: Test
+        run: |
+          corepack pnpm --filter @seqyuan/rst-renderer test
+          corepack pnpm --filter @seqyuan/rst-cli test
+
+      - name: Publish To npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          version="${{ steps.package.outputs.version }}"
+
+          publish_pkg() {
+            local pkg="$1"
+            if npm view "${pkg}@${version}" version >/dev/null 2>&1; then
+              echo "${pkg}@${version} already published, ensuring public access..."
+              npm access set status=public "$pkg"
+            else
+              corepack pnpm --filter "$pkg" publish --access public --no-git-checks
+            fi
+          }
+
+          publish_pkg "@seqyuan/rst-renderer"
+          publish_pkg "@seqyuan/rst-cli"
+          publish_pkg "@seqyuan/vite-plugin-rst"

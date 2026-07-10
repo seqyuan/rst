@@ -1,9 +1,12 @@
 {
   "name": "@seqyuan/rst-renderer",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "reStructuredText renderer for JavaScript/TypeScript — RST → HTML / React / Markdown",
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "sideEffects": false,
   "exports": {
     ".": {

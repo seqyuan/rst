@@ -29,6 +29,10 @@ jobs:
       - name: Build
         run: corepack pnpm -r build
 
-      - name: Test
+      - name: Test core
         working-directory: packages/core
+        run: corepack pnpm test
+
+      - name: Test CLI
+        working-directory: packages/cli
         run: corepack pnpm test

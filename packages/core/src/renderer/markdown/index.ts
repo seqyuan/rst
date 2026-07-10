@@ -17,8 +17,8 @@ import type {
   RstDirective, RstComment,
   RstTable, RstTableRow, RstTableCell,
   RstBlockNode, RstInlineNode,
-} from '../../ast/types.ts'
-import { collectHeadingItems, parseToctreeEntries } from '../../utils/toc.ts'
+} from '../../ast/types'
+import { collectHeadingItems, parseToctreeEntries } from '../../utils/toc'
 
 // ---------------------------------------------------------------------------
 // MarkdownRenderer
