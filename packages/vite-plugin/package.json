@@ -4,6 +4,9 @@
   "description": "Vite plugin for importing .rst files as HTML or React components",
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
