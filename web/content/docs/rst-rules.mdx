@@ -336,8 +336,28 @@ is reusable report fragments, not full Sphinx compatibility.
 
 ## Tables
 
-Besides `csv-table`, parser backends can also represent normal RST tables.
-For portable report generation, `csv-table` is usually the most stable choice.
+Besides the `csv-table` and `list-table` directives, the builtin parser also
+reads plain RST **simple** and **grid** tables:
+
+```rst
+=====  =====
+Name   Value
+=====  =====
+S1     5234
+=====  =====
+```
+
+```rst
++------+-------+
+| Name | Value |
++======+=======+
+| S1   | 5234  |
++------+-------+
+```
+
+A header row is any row followed by a `====`/`-` separator (simple) or by a
+`+===+` border (grid). For generated reports where the rows come from a
+template loop, `csv-table` / `list-table` are usually the most stable choice.
 
 ## Comments
 
@@ -477,6 +497,50 @@ Each entry contains:
 This is the recommended way to write project-level bioinformatics reports.
 Do not hardcode every sample image path into the template if the file set can
 be discovered from a naming convention or wildcard.
+
+## Known Limitations
+
+These are deliberate boundaries, not bugs. Plan reports around them.
+
+### Tables
+
+- Grid tables (`+---+---+`) are read cell-by-cell, one physical line per row:
+  multi-line cells are joined with a space, and `rowspan` / `colspan` merging
+  is not implemented.
+- For generated tables prefer `.. list-table::` or `.. csv-table::`, which are
+  the most stable for data-driven output.
+
+### Templates
+
+The template engine supports variables, filters, `if`/`else`, `for` loops and
+one string idiom (`{{ '=' * name.length }}`). It is **not** a full Jinja2
+implementation:
+
+- no arithmetic or comparisons inside `{{ }}` (only the string-repeat idiom)
+- no `elif`, `set`, `macro`, `include`, or filter chaining beyond `a|b`
+- unknown `{% ... %}` tags are kept verbatim as text rather than executed
+
+### Standalone HTML and Math
+
+- `-s/--standalone` inlines the KaTeX **CSS**, but the KaTeX **font files** are
+  referenced from the jsDelivr CDN (rewritten from the package's relative font
+  URLs). A report with math therefore needs network access for the fonts unless
+  you ship the font files yourself and override `--css`.
+- A `.. csv-table:: :file:` path is resolved relative to the source file in the
+  CLI; inside a browser bundle it falls back to a `<table data-file="...">`
+  placeholder for the host application to fill in.
+
+### Sphinx Features Not Implemented
+
+- `autodoc`, cross-reference resolution and a full multi-document `toctree`
+  project graph
+- roles other than `:math:` (they render as `<span class="interpreted-…">`)
+- full `.. include::` semantics — use `--expand-includes` / `includeResolver`
+
+### Vite Plugin
+
+- `includeDefaultStyles` is reserved for a future release and currently has no
+  effect; the generated `html` export is an unstyled fragment.
 
 ## Writer Guidelines
 

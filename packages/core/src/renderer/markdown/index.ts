@@ -393,24 +393,15 @@ export class MarkdownRenderer {
     }
   }
 
-  /** Escape special Markdown characters. */
+  /**
+   * Escape the Markdown characters that can actually start inline markup.
+   *
+   * Escaping every punctuation character (`-`, `.`, `#`, `+`, `!`, `~`…) is
+   * valid Markdown but produces noisy output like `Hello\-world\.`; only
+   * backslash, backtick, `*`, `_`, `[` and `]` need escaping in running text.
+   */
   private escapeMd(text: string): string {
-    return text
-      .replace(/\\/g, '\\\\')
-      .replace(/\*/g, '\\*')
-      .replace(/_/g, '\\_')
-      .replace(/`/g, '\\`')
-      .replace(/\[/g, '\\[')
-      .replace(/\]/g, '\\]')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)')
-      .replace(/#/g, '\\#')
-      .replace(/\+/g, '\\+')
-      .replace(/-/g, '\\-')
-      .replace(/\./g, '\\.')
-      .replace(/!/g, '\\!')
-      .replace(/\|/g, '\\|')
-      .replace(/~/g, '\\~')
+    return text.replace(/([\\`*_\[\]])/g, '\\$1')
   }
 
   private parsePositiveInt(value: string | undefined): number | null {

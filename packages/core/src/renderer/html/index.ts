@@ -493,6 +493,8 @@ export class HtmlRenderer implements RstRenderer {
     ctx.write('<table>\n')
     if (node.headerRows > 0) {
       ctx.write('<thead>\n')
+      // Flag consumed by renderTableCell to emit <th> instead of <td>.
+      ctx.data['_inThead'] = true
       for (let i = 0; i < node.headerRows && i < node.children.length; i++) {
         const row = node.children[i]!
         ctx.write('<tr>')
@@ -501,6 +503,7 @@ export class HtmlRenderer implements RstRenderer {
         }
         ctx.write('</tr>\n')
       }
+      delete ctx.data['_inThead']
       ctx.write('</thead>\n')
     }
     ctx.write('<tbody>\n')

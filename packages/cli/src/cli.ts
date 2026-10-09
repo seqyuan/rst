@@ -245,9 +245,8 @@ export async function main(rawArgs = process.argv.slice(2)) {
     // Warm up Shiki/KaTeX so the first document is highlighted/rendered.
     await preloadRenderers()
 
-    const includeResolver = args.expandIncludes
-      ? { baseDir: dirname(inputPath) }
-      : undefined
+    const baseDir = dirname(inputPath)
+    const includeResolver = args.expandIncludes ? { baseDir } : undefined
 
     // A wrapped standalone document owns the <h1>, so top-level sections can
     // start at h1; fragments keep the default h2 start for safe embedding.
@@ -262,7 +261,7 @@ export async function main(rawArgs = process.argv.slice(2)) {
         break
       }
       case 'template': {
-        output = renderRstTemplate(source, templateContext, { includeResolver, headingOffset })
+        output = renderRstTemplate(source, templateContext, { includeResolver, headingOffset, baseDir })
         break
       }
       case 'react': {
@@ -280,7 +279,7 @@ export default function RstDocument() {
       }
       case 'html':
       default:
-        output = renderRst(source, { includeResolver, headingOffset })
+        output = renderRst(source, { includeResolver, headingOffset, baseDir })
         break
     }
   } catch (err) {

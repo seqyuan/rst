@@ -41,7 +41,7 @@ rst-render report.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png
 | Option | Description |
 |--------|-------------|
 | `-o, --output <path>` | Write output to file (default: stdout) |
-| `-s, --standalone` | Emit a self-contained single HTML file: complete document + built-in theme + base64-inlined images |
+| `-s, --standalone` | Emit a self-contained single HTML file: complete document + built-in theme + base64-inlined images (KaTeX fonts are loaded from the CDN) |
 | `--title <text>` | Document `<title>` (default: the first heading) |
 | `--css <path>` | Extra CSS file appended after the built-in theme |
 | `--no-theme` | Do not inject the built-in theme |
@@ -268,6 +268,12 @@ rst-render report.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png
 - `<script src="app.js">` → `<script>` with inline JS
 
 Remote URLs (http/https) and already-inlined data URIs are left untouched.
+
+**Math note:** when the document contains math, the standalone file also
+inlines the KaTeX stylesheet, but its font files are loaded from the jsDelivr
+CDN (the relative `fonts/…` URLs are rewritten). A math-heavy report therefore
+still needs network access for the fonts unless you ship the font files
+yourself and override `--css`.
 
 ```bash
 # Before: report.html (references logo.png + styles.css)

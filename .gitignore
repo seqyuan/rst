@@ -19,4 +19,5 @@ coverage/
 
 # Misc
 *.log
-./docs/a.md
+# Local code-review notes (not part of the project)
+docs/a.md

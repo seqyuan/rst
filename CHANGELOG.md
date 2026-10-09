@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.1.4 - 2026-10-09
+
+### Fixed
+
+- `@seqyuan/vite-plugin-rst` now loads the renderer with a dynamic `import()`;
+  the previous `createRequire(...)('@seqyuan/rst-renderer')` failed with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED` because the package only declared the `import`
+  export condition. The plugin's `transform` is now async.
+- `renderRst({ parser: 'rst-compiler' })` works in published ESM builds. The
+  adapter used a bare `require('rst-compiler')`, which the bundler rewrote into
+  a shim that threw in ESM consumers (surfacing as a misleading
+  "rst-compiler is not installed"). It now uses the ESM-safe `optionalRequire`.
+  `renderRst` no longer wraps the parse call in a try/catch that masked the real
+  error.
+- The builtin parser now parses **simple** (`====  ====`) and **grid**
+  (`+---+---+`) tables into real tables instead of a paragraph.
+- The builtin parser no longer mis-detects an overline section when a paragraph
+  immediately follows an underline (previously dropped the paragraph and
+  rendered `<h2>=====</h2>`). Overline sections no longer emit a stray `<hr>`.
+- The template engine resolves `.length` on strings/arrays, so the documented
+  `{{ '=' * name.length }}` idiom works again (previously returned empty,
+  breaking generated RST headings).
+- `.. csv-table::` with `:file:` now reads and renders the referenced CSV
+  relative to `baseDir` (set automatically by the CLI); it previously emitted an
+  empty `<table data-file>` placeholder.
+- `wrapHtmlDocument()` now inlines the KaTeX stylesheet when the body contains
+  math, so standalone reports typeset correctly (font URLs point at the jsDelivr
+  CDN to avoid bundling ~1 MB of base64 fonts).
+- Markdown output no longer over-escapes punctuation (`Hello-world.` instead of
+  `Hello\-world\.`).
+- `HtmlRenderer` table headers now render as `<th>` (the `_inThead` flag was
+  never set).
+
+### Changed
+
+- Removed the unused `react-dom` runtime dependency from `@seqyuan/rst-renderer`.
+- Added `README.md`, `LICENSE` and package metadata (`repository`, `homepage`,
+  `bugs`) to the repository and each published package.
+
+### CI
+
+- `test` workflow builds only `./packages/*` and runs the Vite plugin tests;
+  the publish workflow runs the Vite plugin tests before releasing.
+
 ## 0.1.3 - 2026-10-09
 
 ### Fixed

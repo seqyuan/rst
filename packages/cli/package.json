@@ -1,9 +1,19 @@
 {
   "name": "@seqyuan/rst-cli",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "CLI tool for rendering reStructuredText to HTML/Markdown",
   "type": "module",
   "license": "MIT",
+  "author": "seqyuan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seqyuan/rst.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/seqyuan/rst#readme",
+  "bugs": {
+    "url": "https://github.com/seqyuan/rst/issues"
+  },
   "publishConfig": {
     "access": "public"
   },

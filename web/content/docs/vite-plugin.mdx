@@ -120,6 +120,11 @@ export default defineConfig({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `defaultFormat` | `'html' \| 'md' \| 'react'` | `'html'` | Output when no `?query` param is present |
+| `includeDefaultStyles` | `boolean` | `false` | **Reserved — not implemented yet.** The `html` export is an unstyled fragment; bring your own CSS |
+
+> The plugin loads `@seqyuan/rst-renderer` with a dynamic `import()` inside an
+> async `transform`. Make sure `@seqyuan/rst-renderer` is installed and
+> resolvable from your project root.
 
 ### Hot Module Replacement
 

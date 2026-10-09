@@ -77,6 +77,7 @@ export {
 
 import { HtmlRenderer } from './renderer/html/index'
 import { createBuiltinParser } from './parser/builtin-parser'
+import { createRstCompilerParser } from './parser/rst-compiler-adapter'
 import { builtinDirectivePlugins } from './plugins/directives'
 import type { RstDocument } from './ast/types'
 import { expandIncludes } from './preprocess/includes'
@@ -97,6 +98,11 @@ export interface RenderOptions {
    * document whose top-level title should be `<h1>`.
    */
   headingOffset?: number
+  /**
+   * Base directory for resolving `.. csv-table:: :file:` references at render
+   * time. Defaults to the process working directory when running in Node.
+   */
+  baseDir?: string
 }
 
 /**
@@ -115,13 +121,9 @@ export function renderRst(source: string, options: RenderOptions = {}): string {
   let document: RstDocument
 
   if (options.parser === 'rst-compiler') {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { createRstCompilerParser } = require('./parser/rst-compiler-adapter')
-      document = createRstCompilerParser().parse({ input: source }).document
-    } catch {
-      throw new Error('rst-compiler is not installed. Install it with: pnpm add rst-compiler')
-    }
+    // The adapter loads `rst-compiler` lazily and throws a clear error when it
+    // is missing; do not wrap this in a try/catch that masks real parse errors.
+    document = createRstCompilerParser().parse({ input: source }).document
   } else {
     document = createBuiltinParser().parse({ input: source }).document
   }
@@ -133,5 +135,6 @@ export function renderRst(source: string, options: RenderOptions = {}): string {
     plugin.install(renderer)
   }
 
-  return renderer.render(document)
+  const context = options.baseDir ? { data: { baseDir: options.baseDir } } : undefined
+  return renderer.render(document, context)
 }

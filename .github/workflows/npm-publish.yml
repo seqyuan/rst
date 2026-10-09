@@ -69,6 +69,7 @@ jobs:
         run: |
           corepack pnpm --filter @seqyuan/rst-renderer test
           corepack pnpm --filter @seqyuan/rst-cli test
+          corepack pnpm --filter @seqyuan/vite-plugin-rst test
 
       - name: Publish To npm
         env:

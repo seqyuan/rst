@@ -106,6 +106,22 @@ Group: {{ group.name }}
 {# this is a comment #}
 ```
 
+#### Expression Limitations
+
+The engine is intentionally small. Inside `{{ }}` you can use variable paths
+(`user.name`, `items[0]`, `name.length`) and the `|filter` syntax, but **not**
+arbitrary expressions:
+
+```jinja
+{{ '=' * name.length }}   {# supported: string-repeat idiom #}
+{{ count + 1 }}           {# NOT supported: arithmetic #}
+{{ a if b else c }}       {# NOT supported: conditional expression #}
+```
+
+`{% if %}` accepts a single path (optionally negated with `not`); `and` / `or`
+and comparisons are not supported. Unknown `{% ... %}` tags are passed through
+verbatim as text.
+
 ### Two-Step Rendering
 
 ```ts

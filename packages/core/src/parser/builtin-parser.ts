@@ -29,6 +29,7 @@ import type {
   RstDirective, RstComment, RstHyperlinkTarget,
   RstSubstitutionDef,
   RstTransition, RstBlockquote,
+  RstTable, RstTableRow, RstTableCell,
 } from '../ast/types'
 import { RstParser, RstParserOptions, RstParserOutput } from './index'
 
@@ -293,24 +294,39 @@ function parseSections(state: ParserState): RstBlockNode[] {
 
     const token = tokenizeLine(line)
 
-    // Check for section heading
+    // Overline section: decoration / title / decoration (same char).
+    //
+    // This must be checked before the standard form. The previous code looked
+    // for `lines[pos + 2]` being *text* while sitting on a title line, which
+    // mis-fired whenever a paragraph followed an underline without a blank
+    // line, swallowing the paragraph and rendering `<h2>=====</h2>`.
+    if (token.type === 'decoration' && hasMore(state)) {
+      const titleLine = state.lines[state.pos + 1]
+      const underLine = state.lines[state.pos + 2]
+      if (titleLine !== undefined && underLine !== undefined) {
+        const titleToken = tokenizeLine(titleLine)
+        const underToken = tokenizeLine(underLine)
+        if (
+          titleToken.type === 'text' &&
+          underToken.type === 'decoration' &&
+          underToken.char === token.char
+        ) {
+          next(state) // overline
+          const headingLine = next(state) // title
+          next(state) // underline
+          const section = parseSectionBody(state, getSectionLevel(state, token.char), headingLine)
+          blocks.push(section)
+          continue
+        }
+      }
+    }
+
+    // Standard section: title + underline
     if (token.type === 'text' && hasMore(state)) {
       const nextLine = state.lines[state.pos + 1]
       if (nextLine !== undefined) {
         const nextToken = tokenizeLine(nextLine)
         if (nextToken.type === 'decoration') {
-          // Check for overline (decoration before heading)
-          if (tokenizeLine(state.lines[state.pos + 2] ?? '').type === 'text') {
-            // This is a section with overline+underline
-            next(state) // decoration
-            const headingLine = next(state) // title
-            next(state) // decoration
-            const section = parseSectionBody(state, getSectionLevel(state, nextToken.char), headingLine)
-            blocks.push(section)
-            continue
-          }
-
-          // Standard section: heading + underline
           next(state) // heading
           next(state) // decoration
           const section = parseSectionBody(state, getSectionLevel(state, nextToken.char), line)
@@ -414,6 +430,12 @@ function parseBlock(state: ParserState): RstBlockNode | null {
       return parseFieldList(state, token)
 
     case 'text': {
+      // Tables must be detected before paragraphs/definitions: a grid table
+      // starts with `+---+` and a simple table with `=====  =====`, both of
+      // which tokenize as plain text.
+      const table = parseTable(state)
+      if (table) return table
+
       // Could be a paragraph, a literal block, a definition list, or an option list
       if (line.trimEnd().endsWith('::')) {
         return parseLiteralBlock(state, lineNum)
@@ -909,6 +931,177 @@ function parseSubstitutionDef(
     directive: token.directive,
     rawValue: lines.join(' ').trim(),
     children: [],
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tables (grid + simple)
+// ---------------------------------------------------------------------------
+
+/** Does this line look like a grid-table border (`+---+---+`)? */
+function isGridBorder(line: string): boolean {
+  return /^\s*\+(?:[-=]+\+)+\s*$/.test(line)
+}
+
+/**
+ * Does this line look like a simple-table separator (`=====  =====`)?
+ * Requires at least two column groups so a plain section underline (`=====`)
+ * is never mistaken for a table.
+ */
+function isSimpleSeparator(line: string): boolean {
+  if (/[^=\-\s]/.test(line)) return false
+  const groups = line.match(/[=-]+/g)
+  return !!groups && groups.length >= 2
+}
+
+/** Try to parse a grid or simple table at the current position. */
+function parseTable(state: ParserState): RstTable | null {
+  const line = peek(state)
+  if (line === null) return null
+
+  if (isGridBorder(line)) return parseGridTable(state)
+
+  const nextLine = state.lines[state.pos + 1]
+  const hasSimpleTableStart =
+    isSimpleSeparator(line) ||
+    (nextLine !== undefined && isSimpleSeparator(nextLine))
+
+  return hasSimpleTableStart ? parseSimpleTable(state) : null
+}
+
+function parseGridTable(state: ParserState): RstTable | null {
+  const startLine = state.pos
+  const lines: string[] = []
+
+  while (hasMore(state)) {
+    const l = peek(state)!
+    if (isGridBorder(l) || l.trimStart().startsWith('|')) {
+      lines.push(next(state))
+      continue
+    }
+    break
+  }
+
+  const borderLine = lines.find(isGridBorder)
+  if (!borderLine) return null
+
+  const bounds = [...borderLine.matchAll(/\+/g)].map(m => m.index!)
+  if (bounds.length < 2) return null
+
+  const rows: RstTableRow[] = []
+  let headerRows = 0
+
+  for (const l of lines) {
+    if (isGridBorder(l)) {
+      // A border containing `=` separates the header from the body.
+      if (l.includes('=')) headerRows = Math.max(headerRows, rows.length)
+      continue
+    }
+    if (!l.trimStart().startsWith('|')) continue
+
+    const cells: string[] = []
+    for (let i = 0; i < bounds.length - 1; i++) {
+      cells.push(l.slice(bounds[i]! + 1, bounds[i + 1]!).trim())
+    }
+    rows.push(makeTableRow(cells, startLine))
+  }
+
+  if (rows.length === 0) return null
+
+  return {
+    type: 'Table',
+    source: { startLine, endLine: state.pos },
+    text: '',
+    widths: [],
+    headerRows: Math.min(headerRows, rows.length),
+    children: rows,
+  }
+}
+
+function parseSimpleTable(state: ParserState): RstTable | null {
+  const startLine = state.pos
+  const lines: string[] = []
+
+  while (hasMore(state)) {
+    const l = peek(state)!
+    if (!l || l.trim() === '') break
+    if (isSimpleSeparator(l) || tokenizeLine(l).type === 'text') {
+      lines.push(next(state))
+      continue
+    }
+    break
+  }
+
+  const sepIndices = lines
+    .map((l, i) => (isSimpleSeparator(l) ? i : -1))
+    .filter(i => i >= 0)
+  if (sepIndices.length === 0) return null
+
+  const topBorder = sepIndices[0] === 0
+  const firstDataIndex = topBorder ? 1 : 0
+
+  // Header rows are the data lines before the header separator: the separator
+  // directly after a leading top border, or the first separator when there is
+  // no top border and at least one preceding data line.
+  let headerRows = 0
+  if (!topBorder) {
+    headerRows = sepIndices[0]!
+  } else if (sepIndices.length >= 3) {
+    headerRows = sepIndices[1]! - firstDataIndex
+  }
+
+  const spans: Array<[number, number]> = []
+  for (const m of lines[sepIndices[0]!]!.matchAll(/[=-]+/g)) {
+    spans.push([m.index!, m.index! + m[0]!.length])
+  }
+  if (spans.length < 2) return null
+
+  const rows: RstTableRow[] = []
+  for (let i = firstDataIndex; i < lines.length; i++) {
+    const l = lines[i]!
+    if (isSimpleSeparator(l)) continue
+
+    const cells: string[] = []
+    for (let c = 0; c < spans.length; c++) {
+      const start = spans[c]![0]
+      const end = c + 1 < spans.length ? spans[c + 1]![0] : l.length
+      cells.push(l.slice(start, end).trim())
+    }
+    rows.push(makeTableRow(cells, startLine))
+  }
+
+  if (rows.length === 0) return null
+
+  return {
+    type: 'Table',
+    source: { startLine, endLine: state.pos },
+    text: '',
+    widths: [],
+    headerRows: Math.min(headerRows, rows.length),
+    children: rows,
+  }
+}
+
+function makeTableRow(cells: string[], lineNum: number): RstTableRow {
+  return {
+    type: 'TableRow',
+    source: { startLine: lineNum, endLine: lineNum + 1 },
+    text: '',
+    children: cells.map((text): RstTableCell => ({
+      type: 'TableCell',
+      source: { startLine: lineNum, endLine: lineNum + 1 },
+      text,
+      colspan: 1,
+      rowspan: 1,
+      children: text
+        ? [{
+            type: 'Paragraph',
+            source: { startLine: lineNum, endLine: lineNum + 1 },
+            text,
+            children: parseInline(text),
+          }]
+        : [],
+    })),
   }
 }
 

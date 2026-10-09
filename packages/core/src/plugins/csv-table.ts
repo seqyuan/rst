@@ -6,6 +6,31 @@ import type { DirectivePlugin } from './directives'
 import type { RstDirective } from '../ast/types'
 import type { HtmlRenderer } from '../renderer/html/index'
 import { escapeHtml, type RenderContext } from '../renderer/base'
+import { optionalRequire } from '../utils/optional-modules'
+
+/**
+ * Best-effort read of a `:file:`-referenced CSV relative to `ctx.data.baseDir`
+ * (or `process.cwd()`), returning `null` in browser bundles or when the file
+ * is missing so callers can fall back to a placeholder.
+ */
+function readCsvFile(file: string, ctx: RenderContext): string | null {
+  const fs = optionalRequire('node:fs') as typeof import('node:fs') | null
+  const path = optionalRequire('node:path') as typeof import('node:path') | null
+  if (!fs || !path) return null
+
+  const proc = (globalThis as { process?: { cwd?: () => string } }).process
+  const baseDir = typeof ctx.data['baseDir'] === 'string'
+    ? (ctx.data['baseDir'] as string)
+    : (proc?.cwd?.() ?? '.')
+  const abs = path.isAbsolute(file) ? file : path.resolve(baseDir, file)
+
+  try {
+    if (!fs.existsSync(abs)) return null
+    return fs.readFileSync(abs, 'utf-8')
+  } catch {
+    return null
+  }
+}
 
 export const csvTablePlugin: DirectivePlugin = {
   name: 'csv-table',
@@ -25,16 +50,19 @@ export const csvTablePlugin: DirectivePlugin = {
       let headerRows = parseInt(directive.options['header-rows'] ?? '0', 10)
       if (!Number.isFinite(headerRows) || headerRows < 0) headerRows = 0
 
-      if (file) {
+      const fileContent = file ? readCsvFile(file, ctx) : null
+
+      if (file && fileContent === null) {
+        // The file could not be read (browser bundle, missing file, or no
+        // filesystem access): emit a resolvable placeholder for the host app.
         ctx.write(`<!-- csv-table: file="${escapeHtml(file)}" -->\n`)
         ctx.write(`<table class="csv-table" data-file="${escapeHtml(file)}">\n`)
         if (caption) ctx.write(`<caption>${escapeHtml(caption)}</caption>\n`)
-        if (headerRows > 0) ctx.write('<thead><tr><th>(loading...)</th></tr></thead>\n')
         ctx.write('</table>\n')
         return
       }
 
-      const bodyText = (directive.rawBody ?? directive.children
+      const bodyText = (fileContent ?? directive.rawBody ?? directive.children
         .map(c => c.text)
         .join('\n'))
         .trim()

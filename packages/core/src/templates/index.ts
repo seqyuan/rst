@@ -39,6 +39,7 @@ function tokenize(template: string): Token[] {
 
     // Tag: {% ... %}
     if (template.startsWith('{%', pos)) {
+      const tagStart = pos
       const end = template.indexOf('%}', pos + 2)
       if (end === -1) { tokens.push({ type: 'text', value: template.slice(pos) }); break }
       const inner = template.slice(pos + 2, end).trim()
@@ -64,8 +65,8 @@ function tokenize(template: string): Token[] {
       // endif
       if (/^-?\s*endif\s*-?$/.test(inner)) { tokens.push({ type: 'endif' }); continue }
 
-      // Unknown tag - treat as text
-      tokens.push({ type: 'text', value: template.slice(pos - (end - pos + 4), pos) })
+      // Unknown tag — preserve the whole original tag verbatim as text.
+      tokens.push({ type: 'text', value: template.slice(tagStart, end + 2) })
       continue
     }
 
@@ -420,7 +421,7 @@ function evaluateBlock(node: Node, ctx: TemplateContext): string {
 
 function evaluateExpr(node: Node, ctx: TemplateContext): string {
   const path = node.value!.trim()
-  let value = resolvePath(ctx, path)
+  let value = evaluateSimpleExpression(path, ctx)
 
   // Apply filters
   if (node.filters) {
@@ -487,6 +488,29 @@ function applyFilter(value: unknown, filterExpr: string): unknown {
 // Path resolution
 // ---------------------------------------------------------------------------
 
+/**
+ * Evaluate the small expression subset the docs rely on.
+ *
+ * Generates RST section underlines in data-driven reports, e.g.
+ *   {{ '=' * sample.name.length }}
+ * A repeated string literal multiplied by a resolvable integer.
+ */
+function evaluateSimpleExpression(expr: string, ctx: TemplateContext): unknown {
+  const repeat = expr.match(/^(['"])([\s\S]*?)\1\s*\*\s*(.+)$/)
+  if (repeat) {
+    const rhs = repeat[3]!.trim()
+    const rawCount = /^\d+$/.test(rhs) ? Number(rhs) : resolvePath(ctx, rhs)
+    const count = Number(rawCount)
+    if (Number.isFinite(count) && count > 0) {
+      return repeat[2]!.repeat(Math.floor(count))
+    }
+    return ''
+  }
+
+  if (/^\d+$/.test(expr)) return Number(expr)
+  return resolvePath(ctx, expr)
+}
+
 function resolvePath(obj: unknown, path: string): unknown {
   if (obj === null || obj === undefined) return undefined
   if (!path || path === '') return obj
@@ -506,7 +530,9 @@ function resolvePath(obj: unknown, path: string): unknown {
   let current: unknown = obj
   for (const seg of segments) {
     if (current === null || current === undefined) return undefined
-    if (typeof current === 'object') {
+    // Strings (and arrays) are objects for property access, so `name.length`
+    // and `items.length` resolve; primitives like numbers do not.
+    if (typeof current === 'object' || typeof current === 'string') {
       current = (current as Record<string, unknown>)[seg]
     } else {
       return undefined

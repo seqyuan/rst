@@ -9,6 +9,46 @@
 //
 
 import { escapeHtml } from '../renderer/base'
+import { optionalRequire, optionalRequireResolve } from '../utils/optional-modules'
+
+/**
+ * KaTeX ships only the markup + a stylesheet; without the CSS the math looks
+ * broken in a standalone document. Inline `katex.min.css` and rewrite its
+ * relative `fonts/…` URLs to the jsDelivr CDN so a single-file report renders
+ * math correctly without carrying ~1 MB of base64 font data.
+ *
+ * Returns `''` when KaTeX is not installed or the filesystem is unavailable.
+ */
+function getKatexStylesheet(): string {
+  const cssPath = optionalRequireResolve('katex/dist/katex.min.css')
+  const fs = optionalRequire('node:fs') as typeof import('node:fs') | null
+  if (!cssPath || !fs) return ''
+
+  let css: string
+  try {
+    css = fs.readFileSync(cssPath, 'utf-8')
+  } catch {
+    return ''
+  }
+
+  try {
+    const pkgPath = optionalRequireResolve('katex/package.json')
+    const version = pkgPath
+      ? (JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as { version?: string }).version
+      : undefined
+    if (version) {
+      css = css.replace(
+        /url\((['"]?)fonts\//g,
+        (_match, quote: string) =>
+          `url(${quote}https://cdn.jsdelivr.net/npm/katex@${version}/dist/fonts/`,
+      )
+    }
+  } catch {
+    /* keep the CSS with relative font URLs */
+  }
+
+  return `<style>\n/* KaTeX */\n${css}\n</style>\n`
+}
 
 export const DEFAULT_THEME_CSS = `/* rst-renderer default theme */
 *, *::before, *::after { box-sizing: border-box; }
@@ -286,6 +326,12 @@ export interface WrapHtmlDocumentOptions {
   extraCss?: string
   /** Replace the built-in theme entirely. */
   css?: string
+  /**
+   * Stylesheet injected when the body contains KaTeX math. Defaults to the
+   * KaTeX stylesheet resolved from the installed `katex` package. Pass `''`
+   * to disable.
+   */
+  mathCss?: string
   /** Class applied to the wrapper element. Defaults to `rst-report`. */
   bodyClass?: string
 }
@@ -319,6 +365,10 @@ export function wrapHtmlDocument(
   const title = options.title?.trim() || firstHeadingText(bodyHtml) || 'RST Document'
   const css = options.css ?? DEFAULT_THEME_CSS
   const extraCss = options.extraCss ? `\n${options.extraCss}` : ''
+  const hasMath = /class="katex/.test(bodyHtml)
+  const mathCss = options.mathCss !== undefined
+    ? options.mathCss
+    : (hasMath ? getKatexStylesheet() : '')
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(lang)}">
@@ -329,7 +379,7 @@ export function wrapHtmlDocument(
 <style>
 ${css}${extraCss}
 </style>
-</head>
+${mathCss}</head>
 <body>
 <article class="${escapeHtml(bodyClass)}">
 ${bodyHtml.trim()}

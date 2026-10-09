@@ -21,6 +21,7 @@ import type {
   RstBlockquoteAttribution,
 } from '../ast/types'
 import { RstParser, RstParserOptions, RstParserOutput } from './index'
+import { optionalRequire } from '../utils/optional-modules'
 
 /**
  * Create a parser backend powered by rst-compiler.
@@ -31,16 +32,19 @@ export function createRstCompilerParser(): RstParser {
 
   function getCompiler() {
     if (compiler) return compiler
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { RstToHtmlCompiler } = require('rst-compiler') as typeof import('rst-compiler')
-      compiler = RstToHtmlCompiler
+    // `rst-compiler` may not be installed; load it lazily and safely. A bare
+    // `require()` here is rewritten by the bundler into a shim that throws in
+    // ESM consumers (this package is ESM), so `parser: 'rst-compiler'` failed
+    // with a misleading "not installed" error even when the dependency was
+    // present. `optionalRequire` uses `createRequire` under the hood.
+    const mod = optionalRequire('rst-compiler') as typeof import('rst-compiler') | null
+    if (mod && typeof mod.RstToHtmlCompiler === 'function') {
+      compiler = mod.RstToHtmlCompiler
       return compiler
-    } catch {
-      throw new Error(
-        'rst-compiler is not installed. Install it with: pnpm add rst-compiler'
-      )
     }
+    throw new Error(
+      'rst-compiler is not installed. Install it with: pnpm add rst-compiler'
+    )
   }
 
   return {
