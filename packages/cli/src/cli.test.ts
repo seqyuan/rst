@@ -29,6 +29,22 @@ describe('rst-cli helpers', () => {
     ])
   })
 
+  it('parses standalone document options', () => {
+    const args = parseArgs([
+      'report.rst', '-s',
+      '--title', 'My Report',
+      '--css', 'extra.css',
+      '--no-theme',
+      '--fragment',
+    ])
+
+    expect(args.standalone).toBe(true)
+    expect(args.title).toBe('My Report')
+    expect(args.cssPath).toBe('extra.css')
+    expect(args.noTheme).toBe(true)
+    expect(args.fragment).toBe(true)
+  })
+
   it('collects scan matches with file metadata', () => {
     const dir = mkdtempSync(join(tmpdir(), 'rst-cli-scan-'))
 

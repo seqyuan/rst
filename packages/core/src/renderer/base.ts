@@ -19,6 +19,8 @@ export interface RenderContext {
   citations: Map<string, string>
   /** Current list of hyperlink targets, keyed by name. */
   linkTargets: Map<string, string>
+  /** Resolved substitution definitions (`.. |name| replace:: …`), keyed by name. */
+  substitutions: Map<string, string>
   /** Heading counter for generating anchor IDs. */
   headingIds: Map<string, number>
   /** Arbitrary user data passed through from top-level render call. */

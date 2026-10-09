@@ -28,18 +28,53 @@ This is **bold** text.
 `)
 ```
 
+### Complete HTML Documents
+
+`renderRst` returns an HTML *fragment* (semantic markup with CSS classes). To
+produce a complete, styled document — for example a single-file report — wrap it
+with `wrapHtmlDocument`, which injects the built-in theme and a `<head>`:
+
+```ts
+import { renderRst, wrapHtmlDocument } from '@seqyuan/rst-renderer'
+
+const doc = wrapHtmlDocument(renderRst(source, { headingOffset: 0 }), {
+  title: 'QC Report',
+})
+// -> <!DOCTYPE html> … <style>/* theme */</style> … </article>
+```
+
+Options: `title`, `lang` (default `zh-CN`), `css` (replace the theme entirely),
+`extraCss` (append), `bodyClass` (default `rst-report`). The title defaults to
+the first `<h1>`/`<h2>` in the fragment.
+
+### Heading Levels
+
+By default a level-1 RST section renders as `<h2>`, which keeps the fragment
+safe to embed in a host page. For a standalone document whose top-level title
+should be `<h1>`, pass `headingOffset: 0`:
+
+```ts
+renderRst(source)                  // <h2>, <h3>, …
+renderRst(source, { headingOffset: 0 }) // <h1>, <h2>, …
+```
+
 ### Directive Plugins
 
 | Plugin | Directives | Notes |
 |--------|-----------|-------|
 | `imagePlugin` | `image`, `figure` | Image embedding |
 | `codePlugin` | `code`, `code-block`, `sourcecode` | Shiki syntax highlighting (auto-detected) |
+| `highlightPlugin` | `highlight` | Setting directive; produces no output |
 | `mathPlugin` | `math` | KaTeX rendering (auto-detected) |
 | `admonitionPlugin` | `note`, `warning`, `tip`, `important`, `caution`, `danger`, `hint`, `attention`, `error`, `admonition` | Callout boxes |
 | `csvTablePlugin` | `csv-table` | CSV table with `:file:` or inline body |
 | `listTablePlugin` | `list-table` | Report-friendly table syntax with `:header-rows:` and `:widths:` |
-| `rawPlugin` | `raw` | Raw HTML passthrough |
+| `rawPlugin` | `raw` | Raw HTML passthrough (body emitted verbatim) |
 | `replacePlugin` | `replace`, `unicode` | Text substitution |
+
+Beyond directives, the built-in parser also understands field lists
+(`:name: value`), definition lists, option lists, and substitutions
+(`.. |name| replace:: …` + `|name|`).
 | `containerPlugin` | `container` | Custom CSS container |
 | `contentsPlugin` | `contents`, `toctree` | Lightweight heading TOC and explicit page-card navigation |
 | `includePlugin` | `include` | Build-time include marker; pair with include expansion for actual reuse |
@@ -70,26 +105,22 @@ renderer.registerDirective('my-custom', (directive, ctx, renderChildren) => {
 })
 ```
 
-### Code Highlighting
+### Code Highlighting & Math
 
-When `shiki` is installed, code blocks are automatically syntax-highlighted:
+When `shiki` / `katex` are installed they are detected automatically and used
+for code blocks and math. Because loading is asynchronous, call
+`preloadRenderers()` once before rendering a batch so the *first* document is
+highlighted instead of falling back:
 
-```bash
-pnpm add shiki
+```ts
+import { preloadRenderers, renderRst } from '@seqyuan/rst-renderer'
+
+await preloadRenderers()
+const html = renderRst(source)
 ```
 
-Without Shiki, code blocks render as `<pre><code>` with `data-language` attributes
-for client-side highlighting.
-
-### Math Rendering
-
-When `katex` is installed, math blocks render as rendered HTML:
-
-```bash
-pnpm add katex
-```
-
-Without KaTeX, math renders as LaTeX source wrapped in `<div class="math">`.
+Without them, code blocks render as `<pre><code>` with `data-language`, and math
+falls back to LaTeX source wrapped in `<div class="math">`.
 
 ### Include Expansion
 

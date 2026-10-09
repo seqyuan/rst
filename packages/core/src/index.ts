@@ -48,12 +48,17 @@ export { escapeHtml, idFromTitle } from './renderer/base'
 export { renderTemplate, renderRstTemplate } from './templates/index'
 export type { TemplateContext } from './templates/index'
 
+// Theme + full-document wrapper
+export { DEFAULT_THEME_CSS, wrapHtmlDocument } from './theme/index'
+export type { WrapHtmlDocumentOptions } from './theme/index'
+
 // Plugins
 export type { DirectivePlugin } from './plugins/directives'
 export {
   imagePlugin,
   admonitionPlugin,
   codePlugin,
+  highlightPlugin,
   mathPlugin,
   contentsPlugin,
   csvTablePlugin,
@@ -63,6 +68,7 @@ export {
   containerPlugin,
   includePlugin,
   builtinDirectivePlugins,
+  preloadRenderers,
 } from './plugins/directives'
 
 // ---------------------------------------------------------------------------
@@ -85,6 +91,12 @@ export interface RenderOptions {
     baseDir: string
     maxDepth?: number
   }
+  /**
+   * Offset added to RST section levels when choosing an `<hN>` tag.
+   * Default `1` (level-1 section -> `<h2>`). Pass `0` for a standalone
+   * document whose top-level title should be `<h1>`.
+   */
+  headingOffset?: number
 }
 
 /**
@@ -114,7 +126,7 @@ export function renderRst(source: string, options: RenderOptions = {}): string {
     document = createBuiltinParser().parse({ input: source }).document
   }
 
-  const renderer = new HtmlRenderer()
+  const renderer = new HtmlRenderer({ headingOffset: options.headingOffset })
 
   // Install plugins
   for (const plugin of options.plugins ?? builtinDirectivePlugins) {

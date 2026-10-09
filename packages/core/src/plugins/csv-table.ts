@@ -13,15 +13,22 @@ export const csvTablePlugin: DirectivePlugin = {
 
   install(renderer: HtmlRenderer) {
     renderer.registerDirective('csv-table', (directive: RstDirective, ctx: RenderContext) => {
-      const headerRows = parseInt(directive.options['header-rows'] ?? '0', 10)
       const widths = directive.options['widths']
         ? directive.options['widths'].split(/[\s,]+/).map(Number)
         : []
       const file = directive.options['file'] ?? ''
+      const caption = directive.arguments.join(' ').trim()
+
+      // RST's standard way of declaring a header is `:header: a, b, c`
+      // (a comma-separated list); `:header-rows: 1` is also accepted.
+      const headerOption = (directive.options['header'] ?? '').trim()
+      let headerRows = parseInt(directive.options['header-rows'] ?? '0', 10)
+      if (!Number.isFinite(headerRows) || headerRows < 0) headerRows = 0
 
       if (file) {
         ctx.write(`<!-- csv-table: file="${escapeHtml(file)}" -->\n`)
         ctx.write(`<table class="csv-table" data-file="${escapeHtml(file)}">\n`)
+        if (caption) ctx.write(`<caption>${escapeHtml(caption)}</caption>\n`)
         if (headerRows > 0) ctx.write('<thead><tr><th>(loading...)</th></tr></thead>\n')
         ctx.write('</table>\n')
         return
@@ -37,13 +44,20 @@ export const csvTablePlugin: DirectivePlugin = {
         return
       }
 
-      const rows = parseCsv(bodyText)
+      let rows = parseCsv(bodyText)
+
+      if (headerOption) {
+        rows = [headerOption.split(',').map(cell => cell.trim()), ...rows]
+        headerRows = 1
+      }
+
       if (rows.length === 0) {
         ctx.write('<!-- csv-table: no rows -->\n')
         return
       }
 
       ctx.write('<table class="csv-table">\n')
+      if (caption) ctx.write(`<caption>${escapeHtml(caption)}</caption>\n`)
 
       if (headerRows > 0) {
         ctx.write('<thead>\n')

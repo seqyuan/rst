@@ -297,6 +297,10 @@ export interface RstHyperlinkTarget extends RstNode {
 export interface RstSubstitutionDef extends RstNode {
   type: 'SubstitutionDef'
   name: string
+  /** The substitution directive name, e.g. "replace" or "image". */
+  directive?: string
+  /** Raw value text (used by `replace` and `image` substitutions). */
+  rawValue?: string
   children: RstBlockNode[]
 }
 

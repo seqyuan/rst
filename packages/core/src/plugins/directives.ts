@@ -3,6 +3,7 @@ import type { RenderContext } from '../renderer/base'
 import { escapeHtml } from '../renderer/base'
 import type { HtmlRenderer } from '../renderer/html/index'
 import { collectHeadingItems, parseToctreeEntries } from '../utils/toc'
+import { optionalRequire } from '../utils/optional-modules'
 import type { BundledLanguage, Highlighter } from 'shiki'
 import { csvTablePlugin } from './csv-table'
 
@@ -32,19 +33,28 @@ export const imagePlugin: DirectivePlugin = {
       const height = directive.options['height'] ?? ''
       const align = directive.options['align'] ?? ''
 
-      const attrs: string[] = [`src="${src}"`]
-      if (alt) attrs.push(`alt="${alt}"`)
-      if (width) attrs.push(`width="${width}"`)
-      if (height) attrs.push(`height="${height}"`)
-      if (align) attrs.push(`align="${align}"`)
+      const attrs: string[] = [`src="${escapeHtml(src)}"`]
+      if (alt) attrs.push(`alt="${escapeHtml(alt)}"`)
+      if (align) attrs.push(`align="${escapeHtml(align)}"`)
+      attrs.push(...sizeAttrs(width, height))
 
       ctx.write(`<img ${attrs.join(' ')} />\n`)
     })
 
     renderer.registerDirective('figure', (directive, ctx, renderChildren) => {
-      ctx.write('<figure>\n')
       const src = directive.arguments[0] ?? ''
-      ctx.write(`<img src="${src}" />\n`)
+      const alt = directive.options['alt'] ?? ''
+      const width = directive.options['width'] ?? ''
+      const height = directive.options['height'] ?? ''
+      const align = directive.options['align'] ?? ''
+
+      const attrs: string[] = [`src="${escapeHtml(src)}"`]
+      if (alt) attrs.push(`alt="${escapeHtml(alt)}"`)
+      if (align) attrs.push(`align="${escapeHtml(align)}"`)
+      attrs.push(...sizeAttrs(width, height))
+
+      ctx.write('<figure>\n')
+      ctx.write(`<img ${attrs.join(' ')} />\n`)
       if (directive.children.length > 0) {
         ctx.write('<figcaption>')
         renderChildren(directive.children, ctx)
@@ -53,6 +63,32 @@ export const imagePlugin: DirectivePlugin = {
       ctx.write('</figure>\n')
     })
   },
+}
+
+/**
+ * Build width/height attributes for an image.
+ *
+ * RST allows `:width: 600` (pixels) and `:width: 600px` / `:width: 50%`.
+ * The HTML `width` attribute only accepts a plain integer, so anything else
+ * is emitted as a CSS declaration instead of being copied verbatim into a
+ * (invalid) `width="600px"` attribute the browser would ignore.
+ */
+function sizeAttrs(width: string, height: string): string[] {
+  const attrs: string[] = []
+  const styles: string[] = []
+
+  for (const [prop, value] of [['width', width], ['height', height]] as const) {
+    const v = value.trim()
+    if (!v) continue
+    if (/^\d+$/.test(v)) {
+      attrs.push(`${prop}="${v}"`)
+    } else {
+      styles.push(`${prop}:${v}`)
+    }
+  }
+
+  if (styles.length > 0) attrs.push(`style="${escapeHtml(styles.join(';'))}"`)
+  return attrs
 }
 
 /** Admonition directives: note, warning, tip, etc. */
@@ -66,8 +102,8 @@ export const admonitionPlugin: DirectivePlugin = {
     const handler = (directive: RstDirective, ctx: RenderContext, renderChildren: (blocks: typeof directive.children, ctx: RenderContext) => void) => {
       const type = directive.name.toLowerCase()
       const title = directive.arguments[0] ?? type.charAt(0).toUpperCase() + type.slice(1)
-      ctx.write(`<div class="admonition admonition-${type}">\n`)
-      ctx.write(`<p class="admonition-title">${title}</p>\n`)
+      ctx.write(`<div class="admonition admonition-${escapeHtml(type)}">\n`)
+      ctx.write(`<p class="admonition-title">${escapeHtml(title)}</p>\n`)
       renderChildren(directive.children, ctx)
       ctx.write('</div>\n')
     }
@@ -84,29 +120,36 @@ const SHIKI_COMMON_LANGS = [
 ] as const
 
 let shikiHighlighter: Highlighter | null = null
-let shikiInitStarted = false
+let shikiInitPromise: Promise<void> | null = null
 const shikiLoadedLangs = new Set<string>()
 const shikiPendingLangs = new Set<string>()
 
-function initShiki(): void {
-  if (shikiInitStarted) return
-  shikiInitStarted = true
+/**
+ * Kick off Shiki loading and return the in-flight promise.
+ * Loading is idempotent; awaiting it (see `preloadRenderers`) guarantees the
+ * first render is highlighted instead of falling back to plain text.
+ */
+function initShiki(): Promise<void> {
+  if (!shikiInitPromise) shikiInitPromise = loadShiki()
+  return shikiInitPromise
+}
 
+async function loadShiki(): Promise<void> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const shiki = require('shiki') as typeof import('shiki')
-    if (typeof shiki.getSingletonHighlighter !== 'function') return
+    const shiki = optionalRequire('shiki') as typeof import('shiki') | null
+    if (!shiki || typeof shiki.getSingletonHighlighter !== 'function') return
 
-    void shiki.getSingletonHighlighter({
+    const highlighter = await shiki.getSingletonHighlighter({
       themes: ['github-light'],
       langs: [...SHIKI_COMMON_LANGS],
-    }).then((highlighter) => {
-      shikiHighlighter = highlighter
-      for (const lang of SHIKI_COMMON_LANGS) {
-        shikiLoadedLangs.add(lang)
-      }
-    }).catch(() => { /* fallback to plain pre/code */ })
-  } catch { /* Shiki not installed */ }
+    })
+    shikiHighlighter = highlighter
+    for (const lang of SHIKI_COMMON_LANGS) {
+      shikiLoadedLangs.add(lang)
+    }
+  } catch {
+    /* fallback to plain pre/code */
+  }
 }
 
 function asShikiLang(lang: string): BundledLanguage {
@@ -139,21 +182,69 @@ function shikiHighlight(code: string, lang: string): string {
   }
 }
 
+/**
+ * Extract the raw source text of a directive body.
+ *
+ * Directives such as `code` and `math` must not render their children to
+ * collect content: the literal-block renderer already produces HTML
+ * (`<pre><code>…`), and escaping that HTML again yielded output such as
+ * `&lt;pre&gt;&lt;code&gt;…` that also broke KaTeX (it received HTML as LaTeX).
+ */
+function collectDirectiveText(directive: RstDirective): string {
+  const parts: string[] = []
+  for (const child of directive.children) {
+    const text = (child as { text?: unknown }).text
+    if (typeof text === 'string' && text.length > 0) parts.push(text)
+  }
+  if (parts.length > 0) return parts.join('\n')
+  // Strip the single trailing newline the tokenizer leaves behind.
+  return (directive.rawBody ?? '').replace(/\n$/, '')
+}
+
+type KatexRenderer = (latex: string, displayMode: boolean) => string
+let katexRenderer: KatexRenderer | null | undefined
+
+/** Lazily resolve KaTeX, or `null` when it is unavailable. */
+function getKatex(): KatexRenderer | null {
+  if (katexRenderer !== undefined) return katexRenderer
+  katexRenderer = null
+
+  const katex = optionalRequire('katex') as
+    | { renderToString?: (latex: string, opts?: unknown) => string }
+    | null
+  if (katex && typeof katex.renderToString === 'function') {
+    const renderToString = katex.renderToString.bind(katex)
+    katexRenderer = (latex, displayMode) => {
+      try {
+        return renderToString(latex, { throwOnError: false, displayMode })
+      } catch {
+        return ''
+      }
+    }
+  }
+  return katexRenderer
+}
+
+/**
+ * Warm up optional renderers (KaTeX, Shiki). Await once before rendering a
+ * batch — e.g. from the CLI — so the first document gets full syntax
+ * highlighting and math instead of silently falling back.
+ */
+export async function preloadRenderers(): Promise<void> {
+  getKatex()
+  await initShiki()
+}
+
 /** Code directive with optional Shiki syntax highlighting. */
 export const codePlugin: DirectivePlugin = {
   name: 'code',
-  directives: ['code', 'code-block', 'sourcecode', 'highlight'],
+  directives: ['code', 'code-block', 'sourcecode'],
   install(renderer) {
-    initShiki()
+    void initShiki()
 
-    renderer.registerDirective('code', (directive, ctx, renderChildren) => {
+    const handler = (directive: RstDirective, ctx: RenderContext) => {
       const language = directive.arguments[0] ?? directive.options['language'] ?? ''
-
-      // Collect code content
-      const codeParts: string[] = []
-      const subCtx = { ...ctx, write: (s: string) => codeParts.push(s) }
-      renderChildren(directive.children, subCtx)
-      const code = codeParts.join('')
+      const code = collectDirectiveText(directive)
 
       try {
         if (language && code.trim()) {
@@ -165,50 +256,54 @@ export const codePlugin: DirectivePlugin = {
         }
       } catch { /* fallback */ }
 
-      const langAttr = language ? ` data-language="${language}"` : ''
+      const langAttr = language ? ` data-language="${escapeHtml(language)}"` : ''
       ctx.write(`<pre class="code-block"${langAttr}><code>${escapeHtml(code)}</code></pre>\n`)
-    })
+    }
+
+    // Register every accepted name — previously only `code` was registered, so
+    // `.. code-block::` silently fell through and lost its language/marking.
+    for (const name of this.directives) {
+      renderer.registerDirective(name, handler)
+    }
   },
 }
 
-/** Math directive with KaTeX rendering. */
+/** `.. highlight:: lang` is a setting directive and produces no output. */
+export const highlightPlugin: DirectivePlugin = {
+  name: 'highlight',
+  directives: ['highlight'],
+  install(renderer) {
+    renderer.registerDirective('highlight', () => { /* setting only */ })
+  },
+}
+
+/** Math directive with KaTeX rendering plus the inline `:math:` role. */
 export const mathPlugin: DirectivePlugin = {
   name: 'math',
   directives: ['math'],
   install(renderer) {
-    let katexRender: ((latex: string) => string) | null = null
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const katex = require('katex') as typeof import('katex')
-      if (katex.renderToString) {
-        katexRender = (latex: string) => {
-          try {
-            return katex.renderToString(latex, { throwOnError: false, displayMode: true })
-          } catch {
-            return ''
-          }
-        }
-      }
-    } catch { /* KaTeX not installed */ }
+    const renderMath = (latex: string, displayMode: boolean): string => {
+      const trimmed = latex.trim()
+      if (!trimmed) return ''
 
-    renderer.registerDirective('math', (directive, ctx, renderChildren) => {
-      const mathParts: string[] = []
-      const subCtx = { ...ctx, write: (s: string) => mathParts.push(s) }
-      renderChildren(directive.children, subCtx)
-      const latex = mathParts.join('').trim()
-
-      if (katexRender && latex) {
-        try {
-          const html = katexRender(latex)
-          if (html) {
-            ctx.write(`<div class="math">${html}</div>\n`)
-            return
-          }
-        } catch { /* fallback */ }
+      const katex = getKatex()
+      if (katex) {
+        const html = katex(trimmed, displayMode)
+        if (html) return html
       }
 
-      // Fallback: LaTeX source wrapped in div
-      ctx.write(`<div class="math">\\[${escapeHtml(latex)}\\]</div>\n`)
+      const escaped = escapeHtml(trimmed)
+      return displayMode ? `\\[${escaped}\\]` : `\\(${escaped}\\)`
+    }
+
+    renderer.registerDirective('math', (directive, ctx) => {
+      const latex = collectDirectiveText(directive)
+      ctx.write(`<div class="math">${renderMath(latex, true)}</div>\n`)
+    })
+
+    // Inline role: :math:`E = mc^2`
+    renderer.registerInlineRole('math', (text, ctx) => {
+      ctx.write(`<span class="math math-inline">${renderMath(text, false)}</span>`)
     })
   },
 }
@@ -278,6 +373,7 @@ export const listTablePlugin: DirectivePlugin = {
         ? directive.options['widths'].split(/[\s,]+/).map(Number)
         : []
 
+      const caption = directive.arguments.join(' ').trim()
       const rows = parseListTableRows(directive.rawBody ?? '')
       if (rows.length === 0) {
         ctx.write('<!-- list-table: empty -->\n')
@@ -285,6 +381,7 @@ export const listTablePlugin: DirectivePlugin = {
       }
 
       ctx.write('<table class="list-table">\n')
+      if (caption) ctx.write(`<caption>${escapeHtml(caption)}</caption>\n`)
 
       if (headerRows > 0) {
         ctx.write('<thead>\n')
@@ -315,17 +412,16 @@ export const replacePlugin: DirectivePlugin = {
   },
 }
 
-/** Raw directive: .. raw:: html */
+/** Raw directive: .. raw:: html — emits the body verbatim, no escaping. */
 export const rawPlugin: DirectivePlugin = {
   name: 'raw',
   directives: ['raw'],
   install(renderer) {
-    renderer.registerDirective('raw', (directive, ctx, renderChildren) => {
-      const format = directive.arguments[0] ?? 'html'
-      if (format === 'html') {
-        renderChildren(directive.children, ctx)
-      }
-      // Other formats are silently ignored
+    renderer.registerDirective('raw', (directive, ctx) => {
+      const format = (directive.arguments[0] ?? 'html').toLowerCase()
+      if (format !== 'html') return // other formats are silently ignored
+      const body = (directive.rawBody ?? '').replace(/\n$/, '')
+      if (body) ctx.write(body + '\n')
     })
   },
 }
@@ -336,8 +432,8 @@ export const containerPlugin: DirectivePlugin = {
   directives: ['container'],
   install(renderer) {
     renderer.registerDirective('container', (directive, ctx, renderChildren) => {
-      const className = directive.arguments[0] ?? ''
-      ctx.write(`<div class="${className}">\n`)
+      const className = directive.arguments.join(' ').trim()
+      ctx.write(`<div${className ? ` class="${escapeHtml(className)}"` : ''}>\n`)
       renderChildren(directive.children, ctx)
       ctx.write('</div>\n')
     })
@@ -363,6 +459,7 @@ export const builtinDirectivePlugins: DirectivePlugin[] = [
   imagePlugin,
   admonitionPlugin,
   codePlugin,
+  highlightPlugin,
   mathPlugin,
   contentsPlugin,
   csvTablePlugin,

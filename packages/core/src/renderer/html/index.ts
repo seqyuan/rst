@@ -22,12 +22,25 @@ import { RenderContext, RstRenderer, escapeHtml, idFromTitle } from '../base'
 // HTML Renderer
 // ---------------------------------------------------------------------------
 
+export interface HtmlRendererOptions {
+  /**
+   * Offset added to RST section levels when choosing an `<hN>` tag.
+   *
+   * Default `1`: a level-1 RST section renders as `<h2>`, which keeps the
+   * fragment embeddable in a host page that already owns the `<h1>`. Pass `0`
+   * for a standalone document whose top-level title should be `<h1>`.
+   */
+  headingOffset?: number
+}
+
 export class HtmlRenderer implements RstRenderer {
   readonly name = 'html'
 
   private nodeRenderers = new Map<string, (node: RstNode, ctx: RenderContext) => void>()
+  private headingOffset: number
 
-  constructor() {
+  constructor(options: HtmlRendererOptions = {}) {
+    this.headingOffset = options.headingOffset ?? 1
     // Register all node renderers (type cast needed for contravariance)
     const reg = this.register.bind(this)
     reg('Document', this.renderDocument)
@@ -86,6 +99,17 @@ export class HtmlRenderer implements RstRenderer {
     return this
   }
 
+  /** For plugins to override how a specific inline role (`:role:`text``) renders. */
+  registerInlineRole(
+    role: string,
+    fn: (text: string, ctx: RenderContext) => void,
+  ): this {
+    this._inlineRoleRenderers.set(role.toLowerCase(), fn)
+    return this
+  }
+
+  private _inlineRoleRenderers = new Map<string, (text: string, ctx: RenderContext) => void>()
+
   private _directiveRenderers = new Map<string, (
     directive: RstDirective,
     ctx: RenderContext,
@@ -104,6 +128,7 @@ export class HtmlRenderer implements RstRenderer {
       footnotes: new Map(),
       citations: new Map(),
       linkTargets: new Map(),
+      substitutions: new Map(),
       headingIds: new Map(),
       data: {},
       ...context,
@@ -166,6 +191,15 @@ export class HtmlRenderer implements RstRenderer {
       const subCtx = { ...ctx, write: (s: string) => cb.push(s) }
       for (const c of cit.children) this.renderNode(c, subCtx)
       ctx.citations.set(cit.label, cb.join(''))
+    } else if (node.type === 'SubstitutionDef') {
+      const sub = node as RstSubstitutionDef
+      const value = sub.rawValue ?? ''
+      ctx.substitutions.set(
+        sub.name,
+        sub.directive === 'image'
+          ? `<img src="${escapeHtml(value)}" alt="${escapeHtml(sub.name)}" />`
+          : escapeHtml(value),
+      )
     }
 
     if ('children' in node && Array.isArray(node.children)) {
@@ -204,7 +238,7 @@ export class HtmlRenderer implements RstRenderer {
   }
 
   private renderSection  (node: RstSection, ctx: RenderContext): void {
-    const hLevel = Math.min(node.level + 1, 6)
+    const hLevel = Math.min(Math.max(node.level + this.headingOffset, 1), 6)
     const id = idFromTitle(node.title)
 
     // Ensure unique ID
@@ -256,8 +290,17 @@ export class HtmlRenderer implements RstRenderer {
   }
 
   private renderInterpretedText  (node: RstInterpretedText, ctx: RenderContext): void {
-    // Default: render as <span> with role class
     const text = node.displayText || node.body
+    const role = (node.role || '').toLowerCase()
+
+    // Give plugins (e.g. :math:) a chance to take over specific roles
+    const roleRenderer = this._inlineRoleRenderers.get(role)
+    if (roleRenderer) {
+      roleRenderer(text, ctx)
+      return
+    }
+
+    // Default: render as <span> with role class
     ctx.write(`<span class="interpreted-${escapeHtml(node.role)}">${escapeHtml(text)}</span>`)
   }
 
@@ -273,6 +316,11 @@ export class HtmlRenderer implements RstRenderer {
   }
 
   private renderSubstitutionRef  (node: RstSubstitutionRef, ctx: RenderContext): void {
+    const value = ctx.substitutions.get(node.refName)
+    if (value !== undefined) {
+      ctx.write(value)
+      return
+    }
     ctx.write(`<!-- substitution-ref: ${escapeHtml(node.refName)} -->`)
   }
 

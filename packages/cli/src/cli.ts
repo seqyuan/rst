@@ -3,9 +3,9 @@
 // rst-render — CLI tool for reStructuredText
 // ---------------------------------------------------------------------------
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, realpathSync } from 'node:fs'
 import { resolve, dirname, extname } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { buildTemplateContext, parseScanSpec } from './context'
 import type { ScanSpec } from './context'
 
@@ -22,6 +22,10 @@ interface Args {
   scans: ScanSpec[]
   expandIncludes: boolean
   standalone: boolean
+  title?: string
+  cssPath?: string
+  noTheme: boolean
+  fragment: boolean
   help: boolean
 }
 
@@ -33,6 +37,8 @@ export function parseArgs(raw: string[]): Args {
     expandIncludes: false,
     help: false,
     standalone: false,
+    noTheme: false,
+    fragment: false,
   }
   let i = 0
 
@@ -62,6 +68,18 @@ export function parseArgs(raw: string[]): Args {
       case '--standalone':
       case '-s':
         args.standalone = true
+        break
+      case '--title':
+        args.title = raw[++i]
+        break
+      case '--css':
+        args.cssPath = raw[++i]
+        break
+      case '--no-theme':
+        args.noTheme = true
+        break
+      case '--fragment':
+        args.fragment = true
         break
       case '--expand-includes':
         args.expandIncludes = true
@@ -109,7 +127,12 @@ Usage:
 
 Options:
   -o, --output <path>   Write output to file (default: stdout)
-  -s, --standalone      Bundle into self-contained HTML (inline CSS + images)
+  -s, --standalone      Emit a self-contained single HTML file:
+                        full document + built-in theme + inlined images
+  --title <text>        Document title (default: first heading)
+  --css <path>          Extra CSS file appended after the built-in theme
+  --no-theme            Do not inject the built-in theme
+  --fragment            With -s, keep a bare HTML fragment (skip document wrapper)
   --md, --markdown       Output Markdown instead of HTML
   --react                Output React component code
   -t, --template         Render input as a Jinja2 template before HTML output
@@ -121,9 +144,9 @@ Options:
 
 Examples:
   rst-render README.rst
-  rst-render report.rst -o report.html --standalone
+  rst-render report.rst -s -o report.html
+  rst-render report.rst.j2 -t -d project.json --scan plots=upload/plots/*.png -s -o report.html
   rst-render docs.rst --md
-  rst-render template.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png -o out.html -s
 `.trim()
 
 // ---------------------------------------------------------------------------
@@ -216,11 +239,19 @@ export async function main(rawArgs = process.argv.slice(2)) {
       MarkdownRenderer,
       createBuiltinParser,
       expandIncludes,
+      preloadRenderers,
     } = await loadRenderer()
+
+    // Warm up Shiki/KaTeX so the first document is highlighted/rendered.
+    await preloadRenderers()
 
     const includeResolver = args.expandIncludes
       ? { baseDir: dirname(inputPath) }
       : undefined
+
+    // A wrapped standalone document owns the <h1>, so top-level sections can
+    // start at h1; fragments keep the default h2 start for safe embedding.
+    const headingOffset = args.standalone && !args.fragment ? 0 : undefined
 
     switch (args.format) {
       case 'md': {
@@ -231,7 +262,7 @@ export async function main(rawArgs = process.argv.slice(2)) {
         break
       }
       case 'template': {
-        output = renderRstTemplate(source, templateContext, { includeResolver })
+        output = renderRstTemplate(source, templateContext, { includeResolver, headingOffset })
         break
       }
       case 'react': {
@@ -249,7 +280,7 @@ export default function RstDocument() {
       }
       case 'html':
       default:
-        output = renderRst(source, { includeResolver })
+        output = renderRst(source, { includeResolver, headingOffset })
         break
     }
   } catch (err) {
@@ -259,6 +290,28 @@ export default function RstDocument() {
 
   // Standalone bundling
   if (args.standalone && (args.format === 'html' || args.format === 'template')) {
+    if (!args.fragment) {
+      const { wrapHtmlDocument } = await loadRenderer()
+
+      let extraCss = ''
+      if (args.cssPath) {
+        const cssFile = resolve(args.cssPath)
+        if (!existsSync(cssFile)) {
+          console.error(`Error: Cannot read CSS file "${args.cssPath}"`)
+          process.exit(1)
+        }
+        extraCss = readFileSync(cssFile, 'utf-8')
+      }
+
+      output = wrapHtmlDocument(output, {
+        title: args.title,
+        extraCss,
+        // `css: ''` disables the built-in theme; passing undefined would fall
+        // back to DEFAULT_THEME_CSS.
+        ...(args.noTheme ? { css: '' } : {}),
+      })
+    }
+
     output = makeStandalone(output, inputPath)
   }
 
@@ -271,6 +324,25 @@ export default function RstDocument() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/**
+ * Was this file invoked directly (`rst-render …`) rather than imported?
+ *
+ * Comparing `import.meta.url` with `pathToFileURL(process.argv[1])` as plain
+ * strings fails whenever the entry path differs from the resolved module path —
+ * e.g. through a symlink (npm/pnpm `.bin` shims, which is exactly how a
+ * globally installed CLI is launched) or macOS's `/tmp` → `/private/tmp` link.
+ * The CLI then silently did nothing. Both sides are normalised here.
+ */
+function isDirectInvocation(): boolean {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isDirectInvocation()) {
   void main()
 }

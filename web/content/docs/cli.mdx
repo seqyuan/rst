@@ -23,8 +23,8 @@ pnpm add -g @seqyuan/rst-cli
 # HTML output (default)
 rst-render input.rst
 
-# HTML to file
-rst-render input.rst -o output.html
+# Self-contained single-file HTML report
+rst-render input.rst -s -o output.html
 
 # Markdown output
 rst-render input.rst --md
@@ -41,7 +41,11 @@ rst-render report.rst.j2 -t -d project.json --scan plots=upload/plots/*_umap.png
 | Option | Description |
 |--------|-------------|
 | `-o, --output <path>` | Write output to file (default: stdout) |
-| `-s, --standalone` | Bundle into self-contained HTML (inline CSS + images) |
+| `-s, --standalone` | Emit a self-contained single HTML file: complete document + built-in theme + base64-inlined images |
+| `--title <text>` | Document `<title>` (default: the first heading) |
+| `--css <path>` | Extra CSS file appended after the built-in theme |
+| `--no-theme` | Do not inject the built-in theme |
+| `--fragment` | With `-s`, keep a bare HTML fragment (skip the document wrapper) |
 | `--md, --markdown` | Output Markdown instead of HTML |
 | `--react` | Output React component code |
 | `-t, --template` | Render input as a Jinja2 template before HTML output |

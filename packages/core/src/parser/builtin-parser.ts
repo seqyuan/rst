@@ -23,7 +23,11 @@ import type {
   RstInlineNode, RstBlockNode, RstLiteralBlock,
   RstBulletList, RstBulletListItem,
   RstEnumeratedList, RstEnumeratedListItem,
+  RstDefinitionList, RstDefinitionListItem,
+  RstFieldList, RstFieldListItem,
+  RstOptionList, RstOptionListItem,
   RstDirective, RstComment, RstHyperlinkTarget,
+  RstSubstitutionDef,
   RstTransition, RstBlockquote,
 } from '../ast/types'
 import { RstParser, RstParserOptions, RstParserOutput } from './index'
@@ -41,6 +45,8 @@ type LineToken =
   | { type: 'directive'; name: string; args: string; indent: number }
   | { type: 'comment'; indent: number }
   | { type: 'target'; name: string; url: string }
+  | { type: 'substitution'; name: string; directive: string; args: string; indent: number }
+  | { type: 'field'; name: string; text: string; indent: number }
 
 function tokenizeLine(line: string): LineToken {
   // Blank line
@@ -56,6 +62,18 @@ function tokenizeLine(line: string): LineToken {
     return { type: 'decoration', char: ch[0]!, length: ch.length }
   }
 
+  // Substitution definition: .. |name| directive:: args
+  const subMatch = trimmed.match(/^\.\.\s+\|([^|]+)\|\s+(\w[\w-]*)::\s*(.*)$/)
+  if (subMatch) {
+    return {
+      type: 'substitution',
+      name: subMatch[1]!.trim(),
+      directive: subMatch[2]!.toLowerCase(),
+      args: subMatch[3] ?? '',
+      indent,
+    }
+  }
+
   // Directive: starts with ".. "
   const dirMatch = trimmed.match(/^\.\.\s+(?:(\w[\w-]*)::\s*(.*)|(.*))$/)
   if (dirMatch) {
@@ -69,6 +87,12 @@ function tokenizeLine(line: string): LineToken {
   const targetMatch = trimmed.match(/^\.\.\s+_(.+):\s*(.*)$/)
   if (targetMatch) {
     return { type: 'target', name: targetMatch[1]!, url: targetMatch[2] ?? '' }
+  }
+
+  // Field list item: :name: value
+  const fieldMatch = trimmed.match(/^:([^:\s][^:]*):(?:\s+(.*))?$/)
+  if (fieldMatch) {
+    return { type: 'field', name: fieldMatch[1]!.trim(), text: (fieldMatch[2] ?? '').trim(), indent }
   }
 
   // Section decoration: entire line of same char, >= 3 length, only one char type
@@ -98,7 +122,7 @@ function tokenizeLine(line: string): LineToken {
 
 /**
  * Parse inline markup within a text string.
- * Supports: **bold**, *italic*, ``code``, `interpreted`
+ * Supports: **bold**, *italic*, ``code``, :role:`text`, |substitution|
  */
 function parseInline(text: string): RstInlineNode[] {
   const nodes: RstInlineNode[] = []
@@ -106,18 +130,28 @@ function parseInline(text: string): RstInlineNode[] {
 
   while (remaining.length > 0) {
     // Find the earliest markup occurrence
-    let bestMatch: { type: string; full: string; content: string; index: number } | null = null
+    let bestMatch: { type: string; full: string; content: string; index: number; role?: string } | null = null
 
     for (const { regex, type } of [
+      { regex: /:([a-zA-Z][\w-]*):`([^`]+)`/g, type: 'InterpretedText' },
       { regex: /\*\*(.+?)\*\*/g, type: 'StrongEmphasis' },
       { regex: /\*(.+?)\*/g, type: 'Emphasis' },
       { regex: /``(.+?)``/g, type: 'InlineLiteral' },
+      { regex: /\|([^|\s][^|]*)\|/g, type: 'SubstitutionRef' },
       { regex: /`([^`]+)`/g, type: 'InlineLiteral' },
     ]) {
       regex.lastIndex = 0
       const m = regex.exec(remaining)
       if (m && (bestMatch === null || m.index < bestMatch.index)) {
-        bestMatch = { type, full: m[0], content: m[1]!, index: m.index }
+        // The role form captures [role, content]; the others capture [content].
+        const isRole = type === 'InterpretedText'
+        bestMatch = {
+          type,
+          full: m[0],
+          content: (isRole ? m[2] : m[1])!,
+          index: m.index,
+          ...(isRole ? { role: m[1]! } : {}),
+        }
       }
     }
 
@@ -146,6 +180,22 @@ function parseInline(text: string): RstInlineNode[] {
         source: { startLine: 0, endLine: 0 },
         text: bestMatch.content,
         children: parseInline(bestMatch.content),
+      })
+    } else if (bestMatch.type === 'InterpretedText') {
+      nodes.push({
+        type: 'InterpretedText',
+        source: { startLine: 0, endLine: 0 },
+        text: bestMatch.content,
+        role: bestMatch.role ?? '',
+        displayText: bestMatch.content,
+        body: bestMatch.content,
+      })
+    } else if (bestMatch.type === 'SubstitutionRef') {
+      nodes.push({
+        type: 'SubstitutionRef',
+        source: { startLine: 0, endLine: 0 },
+        text: bestMatch.content,
+        refName: bestMatch.content,
       })
     } else {
       nodes.push({
@@ -357,12 +407,23 @@ function parseBlock(state: ParserState): RstBlockNode | null {
     case 'enum':
       return parseEnumeratedList(state, token)
 
-    case 'text':
-      // Could be a paragraph or a literal block
+    case 'substitution':
+      return parseSubstitutionDef(state, token)
+
+    case 'field':
+      return parseFieldList(state, token)
+
+    case 'text': {
+      // Could be a paragraph, a literal block, a definition list, or an option list
       if (line.trimEnd().endsWith('::')) {
         return parseLiteralBlock(state, lineNum)
       }
+      const optionList = parseOptionList(state)
+      if (optionList) return optionList
+      const definitionList = parseDefinitionList(state)
+      if (definitionList) return definitionList
       return parseParagraph(state, lineNum)
+    }
 
     default:
       next(state)
@@ -470,27 +531,43 @@ function parseDirective(state: ParserState, token: LineToken & { type: 'directiv
   }
 
   const name = token.name.toLowerCase()
+
+  // Drop trailing blank lines: they used to leak into the directive body and
+  // render as a stray empty paragraph (`<p>…\n\n</p>`).
+  while (bodyLines.length > 0 && bodyLines[bodyLines.length - 1]!.trim() === '') {
+    bodyLines.pop()
+  }
+
   const rawBody = trimCommonIndent(bodyLines)
 
   // Basic directive types we handle inline
   const bodyChildren: RstBlockNode[] = []
   if (rawBody.trim()) {
     const text = rawBody
-    // For code-like directives, treat body as a literal block
-    if (['code', 'code-block', 'sourcecode', 'math'].includes(name)) {
+    // For code-like / raw directives, treat the body as a literal block
+    if (['code', 'code-block', 'sourcecode', 'math', 'raw'].includes(name)) {
+      const language = name === 'math' || name === 'raw'
+        ? undefined
+        : (options['language'] ?? (token.args.trim().split(/\s+/)[0] || undefined))
       bodyChildren.push({
         type: 'LiteralBlock',
         source: { startLine: startLine, endLine: state.pos },
         text,
-        language: name === 'math' ? undefined : options['language'],
+        language,
       })
     } else {
-      bodyChildren.push({
-        type: 'Paragraph',
-        source: { startLine: startLine, endLine: state.pos },
-        text,
-        children: parseInline(text),
-      })
+      // Split the body into separate paragraphs on blank lines: rendering the
+      // whole body as a single Paragraph merged multi-paragraph admonitions.
+      for (const chunk of text.split(/\n\s*\n/)) {
+        const para = chunk.replace(/\s*\n\s*/g, ' ').trim()
+        if (!para) continue
+        bodyChildren.push({
+          type: 'Paragraph',
+          source: { startLine: startLine, endLine: state.pos },
+          text: para,
+          children: parseInline(para),
+        })
+      }
     }
   }
 
@@ -608,6 +685,230 @@ function parseEnumeratedList(state: ParserState, firstToken: LineToken & { type:
     enumType: 'arabic',
     start: 1,
     children: items,
+  }
+}
+
+/**
+ * Parse a field list:
+ *
+ *   :物种: Human (GRCh38)
+ *   :参考基因组: refdata-gex-GRCh38-2024-A
+ *
+ * Each `:name: value` line becomes a FieldListItem; deeper-indented lines are
+ * appended to that item's body.
+ */
+function parseFieldList(state: ParserState, firstToken: LineToken & { type: 'field' }): RstFieldList {
+  const items: RstFieldListItem[] = []
+  const startLine = state.pos
+  const baseIndent = firstToken.indent
+
+  while (hasMore(state)) {
+    const line = peek(state)!
+    if (!line || line.trim() === '') break
+
+    const token = tokenizeLine(line)
+    if (token.type !== 'field' || token.indent !== baseIndent) break
+
+    const itemStart = state.pos
+    next(state)
+
+    const bodyLines: string[] = []
+    if (token.text) bodyLines.push(token.text)
+
+    // Continuation lines belonging to this field's body
+    while (hasMore(state)) {
+      const cont = peek(state)!
+      if (!cont || cont.trim() === '') break
+      const contIndent = cont.length - cont.trimStart().length
+      if (contIndent <= baseIndent) break
+      if (tokenizeLine(cont).type !== 'text') break
+      bodyLines.push(cont.trim())
+      next(state)
+    }
+
+    const bodyText = bodyLines.join(' ').replace(/\s+/g, ' ').trim()
+    const body: RstBlockNode[] = bodyText
+      ? [{
+          type: 'Paragraph',
+          source: { startLine: itemStart, endLine: state.pos },
+          text: bodyText,
+          children: parseInline(bodyText),
+        }]
+      : []
+
+    items.push({
+      type: 'FieldListItem',
+      source: { startLine: itemStart, endLine: state.pos },
+      text: '',
+      name: token.name,
+      body,
+    })
+  }
+
+  return {
+    type: 'FieldList',
+    source: { startLine, endLine: state.pos },
+    text: '',
+    children: items,
+  }
+}
+
+/**
+ * Parse a definition list:
+ *
+ *   term
+ *       definition
+ *
+ * A definition item is a text line immediately followed by a more-indented
+ * block with no intervening blank line.
+ */
+function parseDefinitionList(state: ParserState): RstDefinitionList | null {
+  const items: RstDefinitionListItem[] = []
+  const startLine = state.pos
+
+  while (hasMore(state)) {
+    const line = peek(state)!
+    if (!line || line.trim() === '') break
+
+    const token = tokenizeLine(line)
+    if (token.type !== 'text') break
+    if (line.trimEnd().endsWith('::')) break
+
+    const nextLine = state.lines[state.pos + 1]
+    if (nextLine === undefined || nextLine.trim() === '') break
+
+    const termIndent = line.length - line.trimStart().length
+    const defIndent = nextLine.length - nextLine.trimStart().length
+    if (defIndent <= termIndent) break
+
+    const itemStart = state.pos
+    const termLine = next(state)
+    const defLines: string[] = []
+
+    while (hasMore(state)) {
+      const cont = peek(state)!
+      if (!cont || cont.trim() === '') break
+      const ci = cont.length - cont.trimStart().length
+      if (ci <= termIndent) break
+      defLines.push(next(state))
+    }
+
+    const defText = trimCommonIndent(defLines).trim()
+    const definition: RstBlockNode[] = defText
+      ? [{
+          type: 'Paragraph',
+          source: { startLine: itemStart, endLine: state.pos },
+          text: defText,
+          children: parseInline(defText),
+        }]
+      : []
+
+    items.push({
+      type: 'DefinitionListItem',
+      source: { startLine: itemStart, endLine: state.pos },
+      text: '',
+      term: parseInline(termLine.trim()),
+      definition,
+    })
+  }
+
+  if (items.length === 0) return null
+  return {
+    type: 'DefinitionList',
+    source: { startLine, endLine: state.pos },
+    text: '',
+    children: items,
+  }
+}
+
+/** One or more option markers (`-a`, `--all`, `/V`) with an optional inline description. */
+const OPTION_LINE = /^(\s*)((?:(?:--?|\/)[^\s,]+)(?:\s*,\s*(?:--?|\/)[^\s,]+)*)(?:\s{2,}(.*))?$/
+
+/**
+ * Parse an option list:
+ *
+ *   -a, --all    Process everything
+ *   -x           Enable X
+ */
+function parseOptionList(state: ParserState): RstOptionList | null {
+  const items: RstOptionListItem[] = []
+  const startLine = state.pos
+
+  while (hasMore(state)) {
+    const line = peek(state)!
+    if (!line || line.trim() === '') break
+
+    const m = line.match(OPTION_LINE)
+    if (!m) break
+
+    const baseIndent = m[1]!.length
+    const inline = (m[3] ?? '').trim()
+    const itemStart = state.pos
+    next(state)
+
+    const descLines: string[] = []
+    if (inline) descLines.push(inline)
+    while (hasMore(state)) {
+      const cont = peek(state)!
+      if (!cont || cont.trim() === '') break
+      const ci = cont.length - cont.trimStart().length
+      if (ci <= baseIndent) break
+      descLines.push(next(state).trim())
+    }
+
+    const descText = descLines.join(' ').replace(/\s+/g, ' ').trim()
+    items.push({
+      type: 'OptionListItem',
+      source: { startLine: itemStart, endLine: state.pos },
+      text: '',
+      options: m[2]!.split(/\s*,\s*/),
+      description: descText
+        ? [{
+            type: 'Paragraph',
+            source: { startLine: itemStart, endLine: state.pos },
+            text: descText,
+            children: parseInline(descText),
+          }]
+        : [],
+    })
+  }
+
+  if (items.length === 0) return null
+  return {
+    type: 'OptionList',
+    source: { startLine, endLine: state.pos },
+    text: '',
+    children: items,
+  }
+}
+
+/** Parse `.. |name| directive:: value` substitution definitions. */
+function parseSubstitutionDef(
+  state: ParserState,
+  token: LineToken & { type: 'substitution' },
+): RstSubstitutionDef {
+  const startLine = state.pos
+  next(state)
+
+  const lines: string[] = []
+  if (token.args.trim()) lines.push(token.args.trim())
+
+  while (hasMore(state)) {
+    const line = peek(state)!
+    if (!line || line.trim() === '') break
+    const indent = line.length - line.trimStart().length
+    if (indent <= token.indent) break
+    lines.push(next(state).trim())
+  }
+
+  return {
+    type: 'SubstitutionDef',
+    source: { startLine, endLine: state.pos },
+    text: '',
+    name: token.name,
+    directive: token.directive,
+    rawValue: lines.join(' ').trim(),
+    children: [],
   }
 }
 
