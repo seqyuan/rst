@@ -12,7 +12,7 @@ generate final reports from Jinja2-style templates plus external project data.
 ### Quick Start
 
 ```bash
-pnpm add @seqyuan/rst-renderer
+pnpm add @seqyuan/rst-renderer   # or: npm install @seqyuan/rst-renderer
 ```
 
 ```ts
@@ -30,11 +30,14 @@ This is **bold** and *italic* text.
 
 ### Packages
 
-| Package | Description | npm |
-|---------|-------------|-----|
-| `@seqyuan/rst-renderer` | Core: parser + HTML/React/Markdown renderers + template engine | `pnpm add @seqyuan/rst-renderer` |
-| `@seqyuan/rst-cli` | CLI: template rendering, JSON vars, wildcard scans, standalone HTML | `pnpm add -g @seqyuan/rst-cli` |
-| `@seqyuan/vite-plugin-rst` | Vite: `import html from './doc.rst'` | `pnpm add -D @seqyuan/vite-plugin-rst` |
+| Package | Description | Install |
+|---------|-------------|---------|
+| `@seqyuan/rst-renderer` | Core: parser + HTML/React/Markdown renderers + template engine | `pnpm add @seqyuan/rst-renderer` / `npm install @seqyuan/rst-renderer` |
+| `@seqyuan/rst-cli` | CLI: template rendering, JSON vars, wildcard scans, standalone HTML | `pnpm add -g @seqyuan/rst-cli` / `npm install -g @seqyuan/rst-cli` |
+| `@seqyuan/vite-plugin-rst` | Vite: `import html from './doc.rst'` | `pnpm add -D @seqyuan/vite-plugin-rst` / `npm install -D @seqyuan/vite-plugin-rst` |
+
+`npm` and `pnpm` are interchangeable: `pnpm add` ↔ `npm install`,
+`pnpm add -D` ↔ `npm install -D`, `pnpm add -g` ↔ `npm install -g`.
 
 ### Architecture
 

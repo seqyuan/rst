@@ -1,6 +1,6 @@
 {
   "name": "@seqyuan/vite-plugin-rst",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Vite plugin for importing .rst files as HTML or React components",
   "type": "module",
   "license": "MIT",

@@ -9,8 +9,8 @@ Part of the [rst-renderer](../..) monorepo. See the
 ## Install
 
 ```bash
-pnpm add -D @seqyuan/vite-plugin-rst
-pnpm add @seqyuan/rst-renderer
+pnpm add -D @seqyuan/vite-plugin-rst   # or: npm install -D @seqyuan/vite-plugin-rst
+pnpm add @seqyuan/rst-renderer         # or: npm install @seqyuan/rst-renderer
 ```
 
 ## Usage

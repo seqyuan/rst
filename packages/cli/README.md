@@ -10,7 +10,7 @@ details.
 ## Install
 
 ```bash
-pnpm add -g @seqyuan/rst-cli
+pnpm add -g @seqyuan/rst-cli   # or: npm install -g @seqyuan/rst-cli
 ```
 
 ## Usage

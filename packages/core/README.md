@@ -11,7 +11,7 @@ boundaries.
 ## Install
 
 ```bash
-pnpm add @seqyuan/rst-renderer
+pnpm add @seqyuan/rst-renderer   # or: npm install @seqyuan/rst-renderer
 ```
 
 ## Usage

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.5 - 2026-10-09
+
+### Docs
+
+- Document **npm** install commands alongside pnpm across the root README, all
+  three package READMEs, and the documentation site (Quick Start, CLI, Vite
+  plugin, index). Commands are equivalent: `pnpm add` ↔ `npm install`,
+  `pnpm add -D` ↔ `npm install -D`, `pnpm add -g` ↔ `npm install -g`.
+- Note the global-bin `PATH` check for `npm install -g` and the lockfile caveat
+  (`pnpm-lock.yaml` vs `package-lock.json`).
+
+No code changes in this release — it syncs the package READMEs, which npm only
+refreshes on publish.
+
 ## 0.1.4 - 2026-10-09
 
 ### Fixed

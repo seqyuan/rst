@@ -11,19 +11,24 @@ For a full bioinformatics pipeline report, continue to
 
 ### 1. Install
 
-Pick the package that matches your workflow:
+Pick the package that matches your workflow. `npm` and `pnpm` are
+interchangeable — use whichever your project already uses:
 
 ```bash
 # Library (HTML / React / Markdown)
-pnpm add @seqyuan/rst-renderer
+pnpm add @seqyuan/rst-renderer          # or: npm install @seqyuan/rst-renderer
 
 # CLI (terminal rendering + templates)
-pnpm add -g @seqyuan/rst-cli
+pnpm add -g @seqyuan/rst-cli            # or: npm install -g @seqyuan/rst-cli
 
 # Vite plugin (import .rst in frontend projects)
-pnpm add -D @seqyuan/vite-plugin-rst
-pnpm add @seqyuan/rst-renderer
+pnpm add -D @seqyuan/vite-plugin-rst    # or: npm install -D @seqyuan/vite-plugin-rst
+pnpm add @seqyuan/rst-renderer          # or: npm install @seqyuan/rst-renderer
 ```
+
+Command mapping: `pnpm add` ↔ `npm install`, `pnpm add -D` ↔ `npm install -D`,
+`pnpm add -g` ↔ `npm install -g`. Don't mix lockfiles in one project
+(`pnpm-lock.yaml` vs `package-lock.json`).
 
 ### 2. Write RST
 

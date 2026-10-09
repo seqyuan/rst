@@ -30,17 +30,33 @@ All three packages are version-aligned.
 
 ## Install
 
+The packages work with any npm-compatible package manager. `npm` and `pnpm`
+commands are interchangeable — pick one and stay consistent inside a project.
+
 ```bash
-# Library
+# Library (HTML / React / Markdown)
 pnpm add @seqyuan/rst-renderer
+npm install @seqyuan/rst-renderer
 
 # CLI (global)
 pnpm add -g @seqyuan/rst-cli
+npm install -g @seqyuan/rst-cli
 
-# Vite plugin
+# Vite plugin (plus the renderer it transforms with)
 pnpm add -D @seqyuan/vite-plugin-rst
 pnpm add @seqyuan/rst-renderer
+npm install -D @seqyuan/vite-plugin-rst
+npm install @seqyuan/rst-renderer
 ```
+
+Command equivalents:
+
+| pnpm | npm |
+| ---- | --- |
+| `pnpm add <pkg>` | `npm install <pkg>` |
+| `pnpm add -D <pkg>` | `npm install -D <pkg>` |
+| `pnpm add -g <pkg>` | `npm install -g <pkg>` |
+| `pnpm dlx <pkg>` | `npx <pkg>` |
 
 ## Quick start
 

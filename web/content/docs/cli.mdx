@@ -14,8 +14,12 @@ For general reStructuredText syntax and project-specific template rules, see
 ### Installation
 
 ```bash
-pnpm add -g @seqyuan/rst-cli
+pnpm add -g @seqyuan/rst-cli   # or: npm install -g @seqyuan/rst-cli
 ```
+
+Both install a global `rst-render` executable. If your shell cannot find it
+after an `npm install -g`, check that the global bin directory is on `PATH`
+(`npm bin -g`).
 
 ### Usage
 
